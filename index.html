@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>QC Process Management System - Grinding Plant Ciwandan | PT. Cemindo Gemilang Tbk</title>
+    <meta name="description" content="Aplikasi QC Proses Semen PT. Cemindo Gemilang Tbk (Semen Merah Putih) Grinding Plant Ciwandan: input analisa rutin, kalkulasi proporsi wet base, manajemen raw material, dan laporan akhir shift WhatsApp." />
+    <meta property="og:title" content="QC Process Management System - Grinding Plant Ciwandan" />
+    <meta property="og:description" content="Aplikasi QC Proses Semen PT. Cemindo Gemilang Tbk (Semen Merah Putih) Grinding Plant Ciwandan." />
+    <meta name="theme-color" content="#E31E24" />
+    <link rel="icon" type="image/webp" href="https://cms.semenmerahputih.com/storage/5187/responsive-images/Logo_Semen_Merah_Putih-1___converted_1684_489.webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Defensive guard against browser extension interceptors attempting to assign to window.fetch
+      (function() {
+        try {
+          var realFetch = window.fetch;
+          var currentFetch = realFetch;
+          Object.defineProperty(window, 'fetch', {
+            get: function() {
+              return currentFetch || realFetch;
+            },
+            set: function(fn) {
+              currentFetch = fn;
+            },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {}
+
+        // Suppress unhandled extension errors from propagating to application error listeners
+        window.addEventListener('error', function(e) {
+          if (e && e.filename && e.filename.indexOf('chrome-extension://') !== -1) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+          if (e && e.message && e.message.indexOf('Cannot set property fetch of #<Window>') !== -1) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
+  </head>
+  <body class="bg-[#F3F4F6] text-[#111827] antialiased font-sans selection:bg-[#E31E24]/20 selection:text-[#E31E24]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

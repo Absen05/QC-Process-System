@@ -1,0 +1,8 @@
+{
+  "name": "Aplikasi QC Proses Semen",
+  "description": "Membangun aplikasi web full-stack modern untuk mempermudah pekerjaan Analis Proses Quality Control (QC) di pabrik manufaktur semen dalam melakukan input, update, kalkulasi proporsi (wet base), dan output pelaporan data analisa harian. Aplikasi harus mengedepankan prinsip Frictionless Data Entry (seperti kemudahan menggunakan Excel) tanpa notifikasi/alarm waktu yang mengganggu, karena waktu pengerjaan bersifat kondisional di lapangan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
