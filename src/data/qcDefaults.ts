@@ -1,14 +1,34 @@
 import { 
   MasterTargetDryMap, 
   ShiftSession, 
-  UnifiedIncomingMaterial,
-  ClinkerWfData,
-  MoistureRawMaterialWf,
-  CpShiftSilo,
-  ProductType,
-  MillSessionData
+  UnifiedIncomingMaterial, 
+  ClinkerWfData, 
+  MoistureRawMaterialWf, 
+  CpShiftSilo, 
+  ProductType, 
+  MillSessionData,
+  UserAccount,
+  ProductQualitySpec,
+  CgaMasterSetting
 } from '../types/qc';
 import { SHIFT_DEFINITIONS, calculateWetBase } from '../utils/qcCalculations';
+
+export const DEFAULT_USERS: UserAccount[] = [
+  { id: 'usr_si', role: 'supervisor', name: 'SI (ADMIN)', pin: '123456', updatedAt: '2026-10-19T00:00:00.000Z' },
+  { id: 'usr_rifai', role: 'analyst', name: 'AHMAD RIFAI', pin: '456789', updatedAt: '2026-10-19T00:00:00.000Z' },
+  { id: 'usr_ines', role: 'analyst', name: 'INES NARSUL', pin: '456789', updatedAt: '2026-10-19T00:00:00.000Z' },
+  { id: 'usr_anugrah', role: 'analyst', name: 'ANUGRAH MAHESA', pin: '456789', updatedAt: '2026-10-19T00:00:00.000Z' },
+  { id: 'usr_sadrani', role: 'analyst', name: 'SADRANI', pin: '456789', updatedAt: '2026-10-19T00:00:00.000Z' },
+];
+
+export const DEFAULT_PRODUCT_LIST: string[] = [
+  'PCC Plus FA',
+  'PCC NON FA',
+  'PCC WS',
+  'SPK',
+  'OPC G',
+  'OPC P',
+];
 
 export const DEFAULT_MASTER_TARGETS: MasterTargetDryMap = {
   'Tube Mill (TM)': {
@@ -29,7 +49,66 @@ export const DEFAULT_MASTER_TARGETS: MasterTargetDryMap = {
   },
 };
 
-// Unified Incoming Materials matching Point 4 of instructions
+export const DEFAULT_QUALITY_SPECS: ProductQualitySpec[] = [
+  {
+    productType: 'PCC Plus FA',
+    blaine: { min: 3800, max: 4200, std: 3900 },
+    residuR45: { min: 8.0, max: 14.0, std: 11.0 },
+    moistureH2O: { min: 0.05, max: 0.30, std: 0.15 },
+    so3: { min: 1.90, max: 2.30, std: 2.10 },
+    freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
+  },
+  {
+    productType: 'PCC NON FA',
+    blaine: { min: 3700, max: 4100, std: 3850 },
+    residuR45: { min: 9.0, max: 15.0, std: 12.0 },
+    moistureH2O: { min: 0.05, max: 0.30, std: 0.16 },
+    so3: { min: 1.80, max: 2.20, std: 2.05 },
+    freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
+  },
+  {
+    productType: 'PCC WS',
+    blaine: { min: 3900, max: 4300, std: 4000 },
+    residuR45: { min: 7.0, max: 13.0, std: 10.5 },
+    moistureH2O: { min: 0.05, max: 0.30, std: 0.15 },
+    so3: { min: 1.90, max: 2.30, std: 2.10 },
+    freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
+  },
+  {
+    productType: 'SPK',
+    blaine: { min: 3300, max: 3700, std: 3500 },
+    residuR45: { min: 10.0, max: 16.0, std: 13.0 },
+    moistureH2O: { min: 0.05, max: 0.25, std: 0.12 },
+    so3: { min: 1.80, max: 2.20, std: 2.00 },
+    freelimeFCaO: { min: 0.50, max: 1.50, std: 1.10 },
+  },
+  {
+    productType: 'OPC G',
+    blaine: { min: 3400, max: 3800, std: 3600 },
+    residuR45: { min: 8.0, max: 14.0, std: 11.0 },
+    moistureH2O: { min: 0.02, max: 0.20, std: 0.10 },
+    so3: { min: 2.00, max: 2.50, std: 2.25 },
+    freelimeFCaO: { min: 0.50, max: 1.30, std: 0.90 },
+  },
+  {
+    productType: 'OPC P',
+    blaine: { min: 3600, max: 4000, std: 3800 },
+    residuR45: { min: 6.0, max: 12.0, std: 9.0 },
+    moistureH2O: { min: 0.02, max: 0.20, std: 0.10 },
+    so3: { min: 2.10, max: 2.60, std: 2.35 },
+    freelimeFCaO: { min: 0.50, max: 1.30, std: 0.90 },
+  },
+];
+
+export const DEFAULT_CGA_SETTINGS: CgaMasterSetting[] = [
+  { id: 'cga_1', productType: 'PCC Plus FA', cgaBrand: 'SIKA', dosagePpm: 400, notes: 'Optimasi kehalusan & strength' },
+  { id: 'cga_2', productType: 'PCC NON FA', cgaBrand: 'CONCH', dosagePpm: 350, notes: 'Pengendali pack set' },
+  { id: 'cga_3', productType: 'PCC WS', cgaBrand: 'GCP', dosagePpm: 450, notes: 'Peningkat retensi air' },
+  { id: 'cga_4', productType: 'SPK', cgaBrand: 'SIKA', dosagePpm: 300, notes: 'Kuat tekan awal' },
+  { id: 'cga_5', productType: 'OPC G', cgaBrand: 'CONCH', dosagePpm: 400, notes: 'Workability semen cor' },
+  { id: 'cga_6', productType: 'OPC P', cgaBrand: 'GCP', dosagePpm: 400, notes: 'Kehalusan ekstra' },
+];
+
 export const DEFAULT_UNIFIED_INCOMING: UnifiedIncomingMaterial[] = [
   {
     id: 'inc_trass',
@@ -83,64 +162,68 @@ export const DEFAULT_UNIFIED_INCOMING: UnifiedIncomingMaterial[] = [
     id: 'inc_bbfs_krt',
     name: 'Incoming BBFS KRT',
     enabledParams: ['blaine', 'r45', 'h2o'],
-    params: { blaine: 4250, r45: 7.8, h2o: 0.18 }
+    params: { blaine: null, r45: null, h2o: null }
   },
   {
     id: 'inc_fa_asc',
     name: 'Incoming Fly Ash ASC',
     enabledParams: ['blaine', 'r45', 'h2o'],
-    params: { blaine: 3340, r45: 13.5, h2o: 0.32 }
+    params: { blaine: null, r45: null, h2o: null }
   },
   {
     id: 'inc_fa_ikpp',
     name: 'Incoming Fly Ash IKPP',
     enabledParams: ['blaine', 'r45', 'h2o'],
-    params: { blaine: 3510, r45: 11.9, h2o: 0.25 }
+    params: { blaine: null, r45: null, h2o: null }
   },
   {
     id: 'inc_clinker_bayah',
     name: 'Incoming Clinker Bayah',
     enabledParams: ['c3s', 'fcao', 'c3a', 'h2o'],
-    params: { c3s: 59.2, fcao: 1.08, c3a: 8.42, h2o: 0.14 }
+    params: { c3s: null, fcao: null, c3a: null, h2o: null }
   },
 ];
 
 export const DEFAULT_CLINKER_WF: ClinkerWfData = {
-  c3s: 58.7,
-  fcao: 1.15,
-  c3a: 8.55,
-  h2o: 0.12,
+  c3s: null,
+  fcao: null,
+  c3a: null,
+  h2o: null,
 };
 
 export const DEFAULT_MOISTURE_WF: MoistureRawMaterialWf = {
-  gypsum: 4.25,
-  limestone: 1.85,
-  trass: 4.80,
-  bbKonsumsi: 18.20,
+  gypsum: null,
+  limestone: null,
+  trass: null,
+  bbKonsumsi: null,
 };
 
 export const DEFAULT_CP_SHIFT_SILO: CpShiftSilo = {
-  siloName: 'FLEXIPLUS SILO 4+6',
-  blaine: 3860,
-  r45: 11.8,
-  h2o: 0.16,
-  so3: 2.18,
+  siloName: 'SILO 4+6',
+  blaine: null,
+  r45: null,
+  h2o: null,
+  so3: null,
 };
 
 /**
  * Creates initial mill data for either TM or VRM
+ * If isEmpty is true, rows start clean without prior shift numbers
  */
-function createInitialMillData(
+export function createInitialMillData(
   millType: 'Tube Mill (TM)' | 'Vertical Roller Mill (VRM)',
   hours: string[],
   product: ProductType,
   siloName: string,
-  isRunning: boolean = true
+  isRunning: boolean = true,
+  isEmpty: boolean = true
 ): MillSessionData {
   const isTM = millType === 'Tube Mill (TM)';
   const millCode = isTM ? 'TM' : 'VRM';
   const millNumber = isTM ? 1 : 2;
-  const targetStandard = DEFAULT_MASTER_TARGETS[millType][product];
+  const targetStandard = DEFAULT_MASTER_TARGETS[millType]?.[product] || {
+    clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
+  };
 
   const wetCalc = calculateWetBase({
     clinker: { dry: targetStandard.clinker, h2o: 0.12 },
@@ -160,6 +243,7 @@ function createInitialMillData(
     millType,
     productType: product,
     siloName,
+    tphFeeding: 100.0,
     admixtureName: 'CGA Sika',
     admixturePpm: 400,
     materials: {
@@ -175,29 +259,21 @@ function createInitialMillData(
     savedAt: new Date().toISOString(),
   };
 
-  const propSummary = `${wetCalc.clinker.wet}% Clk | ${wetCalc.gypsum.wet}% Gyp | ${wetCalc.limestone.wet}% Lst | ${wetCalc.trass.wet}% Trass | ${wetCalc.flyAsh.wet}% FA`;
+  const propSummary = `${wetCalc.clinker.dry}% Clk | ${wetCalc.gypsum.dry}% Gyp | ${wetCalc.limestone.dry}% Lst | ${wetCalc.trass.dry}% Trass | ${wetCalc.flyAsh.dry}% FA`;
 
-  const hourlyRows = hours.map((hour, idx) => {
-    const isFilled = idx <= 5;
-    // Slight variance between TM and VRM for realistic plant simulation
-    const baseBlaine = isTM 
-      ? 3810 + (idx * 12) 
-      : 3880 + (idx * 15);
-    const baseR45 = isTM 
-      ? 12.8 - (idx * 0.12) 
-      : 11.6 - (idx * 0.15);
-
+  const hourlyRows = hours.map((hour) => {
     return {
       hour,
-      blaine: isFilled ? baseBlaine : null,
-      residuR45: isFilled ? Number(baseR45.toFixed(2)) : null,
-      moistureH2O: (isFilled && idx % 2 === 0) ? Number((0.16 + (idx * 0.01)).toFixed(2)) : null,
-      so3: (isFilled && idx % 4 === 0) ? Number((2.10 + (idx * 0.02)).toFixed(2)) : null,
-      freelimeFCaO: (isFilled && (idx === 0 || idx === 8)) ? 1.05 : null,
+      blaine: null,
+      residuR45: null,
+      moistureH2O: null,
+      so3: null,
+      freelimeFCaO: null,
+      tph: null,
       proporsiVersionId: propId,
       proporsiDisplay: propSummary,
       admixtureDisplay: 'CGA Sika 400 PPM',
-      notes: idx === 0 ? `Start ${millCode} running steady` : undefined,
+      notes: undefined,
     };
   });
 
@@ -208,6 +284,7 @@ function createInitialMillData(
     isRunning,
     productType: product,
     siloName,
+    tphFeeding: 100.0,
     admixtureName: 'CGA Sika',
     admixturePpm: 400,
     hourlyRows,
@@ -216,34 +293,35 @@ function createInitialMillData(
 }
 
 /**
- * Creates a fresh shift session with realistic initial dual-mill shift data
+ * Creates a fresh shift session (Clean slate, zero residuals)
  */
 export function createInitialShiftSession(
   shiftName: 'SHIFT 1' | 'SHIFT 2' | 'SHIFT 3' | 'AM 1' | 'PM 1' | 'AM 2' | 'PM 2' = 'SHIFT 2',
-  date: string = '2026-10-19'
+  date: string = '2026-10-19',
+  analystName: string = 'AHMAD RIFAI'
 ): ShiftSession {
-  const shiftDef = SHIFT_DEFINITIONS[shiftName];
+  const shiftDef = SHIFT_DEFINITIONS[shiftName] || SHIFT_DEFINITIONS['SHIFT 2'];
 
-  // TM is Mill 1 (e.g. PCC NON FA, Silo 5)
-  const tmData = createInitialMillData('Tube Mill (TM)', shiftDef.hours, 'PCC NON FA', 'SILO 5', true);
+  // TM is Mill 1 (e.g. PCC NON FA, SILO 5)
+  const tmData = createInitialMillData('Tube Mill (TM)', shiftDef.hours, 'PCC NON FA', 'SILO 5', true, true);
   
-  // VRM is Mill 2 (e.g. PCC Plus FA, Silo 4)
-  const vrmData = createInitialMillData('Vertical Roller Mill (VRM)', shiftDef.hours, 'PCC Plus FA', 'SILO 4', true);
+  // VRM is Mill 2 (e.g. PCC Plus FA, SILO 4)
+  const vrmData = createInitialMillData('Vertical Roller Mill (VRM)', shiftDef.hours, 'PCC Plus FA', 'SILO 4', true, true);
 
   return {
     id: `shift_${shiftName.replace(/\s+/g, '_')}_${date}`,
     date,
     shiftName,
     shiftHours: shiftDef.timeRange,
-    analystName: 'Ahmad Fauzi (QC Analyst)',
-    supervisorName: 'Bambang Sudirgo (QC Leader)',
+    analystName,
+    supervisorName: 'SI (ADMIN)',
     tm: tmData,
     vrm: vrmData,
     clinkerWf: { ...DEFAULT_CLINKER_WF },
     moistureWf: { ...DEFAULT_MOISTURE_WF },
     cpShiftSilo: { ...DEFAULT_CP_SHIFT_SILO },
     incomingMaterials: JSON.parse(JSON.stringify(DEFAULT_UNIFIED_INCOMING)),
-    aiInsight: 'Analisa Dual-Mill Shift: Operasi TM (Mill 1) dan VRM (Mill 2) berjalan harmonis dengan rata-rata Blaine terkontrol (TM: 3840 cm²/gr, VRM: 3910 cm²/gr). Residu R45 kedua mill stabil di bawah batas spesifikasi. Penyerapan SO3 dari gipsum konsisten pada 2.12% - 2.18% tanpa kendala build-up di sirkuit penggilingan.',
-    aiInsightTimestamp: '2026-10-19T10:15:00.000Z',
+    aiInsight: undefined,
+    aiInsightTimestamp: undefined,
   };
 }

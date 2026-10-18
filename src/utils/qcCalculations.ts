@@ -3,8 +3,6 @@ import {
   ShiftName, 
   ShiftDefinition, 
   MaterialPropItem, 
-  ProporsiConfig, 
-  HourlyAnalysisRow, 
   ShiftSession,
   MillSessionData,
   UnifiedIncomingMaterial
@@ -195,21 +193,24 @@ export interface ProporsiReportBlock {
   label: string;
   startHour: string;
   endHour: string;
+  avgTph: string;
   avgBlaine: string;
   avgR45: string;
   avgH2O: string;
   avgSO3: string;
-  proporsiSummary: string;
+  proporsiSummary: string; // Target Dry Summary (Poin 6: wajib Dry, bukan Wet!)
   admixtureSummary: string;
 }
 
 /**
  * Calculates averages for a specific mill session's proporsi history
+ * Note: uses DRY proportions for WhatsApp report as specified in instruction point 6!
  */
 export function computeMillProporsiAverages(mill: MillSessionData): ProporsiReportBlock[] {
   const { hourlyRows, proporsiHistory } = mill;
 
   if (!proporsiHistory || proporsiHistory.length === 0) {
+    const tphVals = hourlyRows.map(r => r.tph).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
     const blaineVals = hourlyRows.map(r => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
     const r45Vals = hourlyRows.map(r => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
     const h2oVals = hourlyRows.map(r => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
@@ -223,11 +224,12 @@ export function computeMillProporsiAverages(mill: MillSessionData): ProporsiRepo
       label: 'Proporsi Standar',
       startHour: firstHour,
       endHour: lastHour,
+      avgTph: tphVals.length > 0 ? (tphVals.reduce((a, b) => a + b, 0) / tphVals.length).toFixed(1) : '**',
       avgBlaine: blaineVals.length > 0 ? Math.round(blaineVals.reduce((a, b) => a + b, 0) / blaineVals.length).toString() : '**',
       avgR45: r45Vals.length > 0 ? (r45Vals.reduce((a, b) => a + b, 0) / r45Vals.length).toFixed(2) : '**',
       avgH2O: h2oVals.length > 0 ? (h2oVals.reduce((a, b) => a + b, 0) / h2oVals.length).toFixed(2) : '**',
       avgSO3: so3Vals.length > 0 ? (so3Vals.reduce((a, b) => a + b, 0) / so3Vals.length).toFixed(2) : '**',
-      proporsiSummary: '72.0% Clk | 4.0% Gyp | 14.0% Lst | 5.0% Trass | 5.0% Fly Ash',
+      proporsiSummary: '72.0% Clk | 4.0% Gyp | 14.0% Lst | 5.0% Trass | 5.0% FA',
       admixtureSummary: `${mill.admixtureName} ${mill.admixturePpm} PPM`,
     }];
   }
@@ -257,19 +259,22 @@ export function computeMillProporsiAverages(mill: MillSessionData): ProporsiRepo
       return false;
     });
 
+    const tphVals = matchedRows.map(r => r.tph).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
     const blaineVals = matchedRows.map(r => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
     const r45Vals = matchedRows.map(r => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
     const h2oVals = matchedRows.map(r => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
     const so3Vals = matchedRows.map(r => r.so3).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
 
+    // Point 6 Requirement: Use DRY proportions, NOT Wet Base!
     const m = prop.materials;
-    const summary = `${m.clinker.wet.toFixed(1)}% Clk | ${m.gypsum.wet.toFixed(1)}% Gyp | ${m.limestone.wet.toFixed(1)}% Lst | ${m.trass.wet.toFixed(1)}% Trass | ${m.flyAsh.wet.toFixed(1)}% Fly Ash`;
+    const summary = `${m.clinker.dry.toFixed(1)}% Clk | ${m.gypsum.dry.toFixed(1)}% Gyp | ${m.limestone.dry.toFixed(1)}% Lst | ${m.trass.dry.toFixed(1)}% Trass | ${m.flyAsh.dry.toFixed(1)}% FA`;
 
     blocks.push({
       proporsiId: prop.id,
       label: prop.label,
       startHour: startH,
       endHour: endH,
+      avgTph: tphVals.length > 0 ? (tphVals.reduce((a, b) => a + b, 0) / tphVals.length).toFixed(1) : '**',
       avgBlaine: blaineVals.length > 0 ? Math.round(blaineVals.reduce((a, b) => a + b, 0) / blaineVals.length).toString() : '**',
       avgR45: r45Vals.length > 0 ? (r45Vals.reduce((a, b) => a + b, 0) / r45Vals.length).toFixed(2) : '**',
       avgH2O: h2oVals.length > 0 ? (h2oVals.reduce((a, b) => a + b, 0) / h2oVals.length).toFixed(2) : '**',
@@ -312,6 +317,7 @@ function renderMillBlock(prefix: string, title: string, mill: MillSessionData): 
 
   const propLines = blocks.map(b => {
     return `*Proporsi (${b.startHour} - ${b.endHour})*
+• Feeding: *${b.avgTph}* t/h
 • Blaine : *${b.avgBlaine}* cm²/gr
 • R45    : *${b.avgR45}*%
 • H2O    : *${b.avgH2O}*% 
@@ -324,12 +330,7 @@ function renderMillBlock(prefix: string, title: string, mill: MillSessionData): 
 }
 
 /**
- * Format Incoming Materials list according to instructions:
- * Standard single-param:
- *   *Incoming Trass* : *[NILAI]*%
- * Multi-param:
- *   *Incoming BBFS KRT*
- *   • Blaine : *[NILAI]* cm²/gr | R45 : *[NILAI]*% | H2O : *[NILAI]*%
+ * Format Incoming Materials list
  */
 function renderUnifiedIncomingMaterials(materials: UnifiedIncomingMaterial[]): string {
   const lines: string[] = [];
@@ -342,7 +343,6 @@ function renderUnifiedIncomingMaterials(materials: UnifiedIncomingMaterial[]): s
       const valStr = p.valuePercent !== null && p.valuePercent !== undefined ? `${p.valuePercent}%` : (p.statusText || '**');
       lines.push(`*${m.name}* : *${valStr}*`);
     } else if (m.enabledParams.includes('blaine') || m.enabledParams.includes('r45')) {
-      // Inline multi-param for Blaine, R45, H2O (e.g. BBFS KRT, Fly Ash)
       const parts: string[] = [];
       if (m.enabledParams.includes('blaine')) parts.push(`Blaine : *${fmtVal(p.blaine, 0)}* cm²/gr`);
       if (m.enabledParams.includes('r45')) parts.push(`R45 : *${fmtVal(p.r45)}*%`);
@@ -351,7 +351,6 @@ function renderUnifiedIncomingMaterials(materials: UnifiedIncomingMaterial[]): s
 
       lines.push(`*${m.name}*\n• ${parts.join(' | ')}`);
     } else if (m.enabledParams.includes('c3s')) {
-      // Clinker Bayah format: C3S | F-CaO | C3A | H2O
       const parts: string[] = [];
       if (m.enabledParams.includes('c3s')) parts.push(`C3S : *${fmtVal(p.c3s)}*%`);
       if (m.enabledParams.includes('fcao')) parts.push(`F-CaO : *${fmtVal(p.fcao)}*%`);
@@ -360,7 +359,6 @@ function renderUnifiedIncomingMaterials(materials: UnifiedIncomingMaterial[]): s
 
       lines.push(`*${m.name}*\n• ${parts.join(' | ')}`);
     } else {
-      // Generic custom parameter output
       const parts: string[] = [];
       m.enabledParams.forEach(paramKey => {
         if (paramKey === 'statusText' && p.statusText) parts.push(`Status : *${p.statusText}*`);
@@ -374,12 +372,11 @@ function renderUnifiedIncomingMaterials(materials: UnifiedIncomingMaterial[]): s
 }
 
 /**
- * Generate full Dual-Mill WhatsApp report conforming to Point 5
+ * Generate full Dual-Mill WhatsApp report
  */
 export function generateWhatsAppReport(session: ShiftSession): string {
   const formattedDate = formatIndonesianDate(session.date);
 
-  // Check if TM and/or VRM have running status or filled data
   const tmHasData = session.tm.isRunning || session.tm.hourlyRows.some(r => r.blaine !== null);
   const vrmHasData = session.vrm.isRunning || session.vrm.hourlyRows.some(r => r.blaine !== null);
 
@@ -393,7 +390,6 @@ export function generateWhatsAppReport(session: ShiftSession): string {
     millSections.push(renderMillBlock('A2', 'VRM (MILL 2)', session.vrm));
   }
 
-  // If neither marked running, fallback to TM
   if (millSections.length === 0) {
     millSections.push(renderMillBlock('A1', 'TM (MILL 1)', session.tm));
   }

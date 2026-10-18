@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ShiftName, ProductType, ShiftSession } from '../../types/qc';
-import { X, CheckCircle, Factory } from 'lucide-react';
+import { ShiftName, ProductType, ShiftSession, DEFAULT_SILO_OPTIONS } from '../../types/qc';
+import { X, CheckCircle, Factory, Calendar, Clock, AlertTriangle } from 'lucide-react';
+import { getStoredProductList } from '../../services/qcStorage';
 
 interface ShiftModalProps {
   isOpen: boolean;
@@ -38,6 +39,8 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
   const [vrmProduct, setVrmProduct] = useState<ProductType>(currentSession.vrm.productType);
   const [vrmSilo, setVrmSilo] = useState<string>(currentSession.vrm.siloName);
 
+  const productList = getStoredProductList();
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -66,21 +69,14 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
     { name: 'PM 2', label: 'PM 2', range: '22:00 - 08:00', category: 'Lembur V2 (10 Jam)' },
   ];
 
-  const productOptions: ProductType[] = [
-    'PCC Plus FA',
-    'PCC NON FA',
-    'PCC WS',
-    'SPK',
-    'OPC G',
-    'OPC P',
-  ];
+  const isChangingShift = selectedDate !== currentSession.date || selectedShift !== currentSession.shiftName;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl border-1.5 border-slate-300 overflow-hidden my-6">
+      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border-2 border-slate-500 overflow-hidden my-6">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-red-50 to-white px-5 py-4 border-b border-slate-300 flex items-center justify-between">
+        <div className="bg-slate-800 px-5 py-4 border-b-2 border-slate-600 flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             <img 
               src="/logo_semen_merah_putih.webp" 
@@ -91,29 +87,39 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               className="h-10 w-auto object-contain"
             />
             <div>
-              <h2 className="text-sm font-bold text-gray-900">
+              <h2 className="text-sm font-bold uppercase tracking-wide">
                 Konfigurasi Shift & Dual-Mill
               </h2>
-              <p className="text-[11px] text-gray-500 font-mono">
+              <p className="text-[11px] text-slate-300 font-mono">
                 Grinding Plant Ciwandan
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg"
+            className="text-slate-300 hover:text-white p-1.5 rounded-lg"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Notice for auto-reset */}
+        {isChangingShift && (
+          <div className="p-3 bg-amber-50 border-b-2 border-amber-300 text-amber-900 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span>
+              <strong>Perhatian:</strong> Pergantian shift akan otomatis mengarsipkan data shift saat ini, dan membuka lembar kerja baru yang bersih (reset).
+            </span>
+          </div>
+        )}
+
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs font-sans">
           
           {/* Shift Schedule */}
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-              Jadwal Shift Aktif
+            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+              Jadwal Shift Kerja
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {shiftOptions.map((opt) => (
@@ -121,16 +127,16 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
                   type="button"
                   key={opt.name}
                   onClick={() => setSelectedShift(opt.name)}
-                  className={`p-2 rounded-lg border text-left transition-all ${
+                  className={`p-2.5 rounded-lg border-2 text-left transition-all ${
                     selectedShift === opt.name
-                      ? 'border-[#E31E24] bg-red-50/70 ring-1 ring-[#E31E24]'
-                      : 'border-gray-200 bg-white hover:bg-gray-50'
+                      ? 'border-[#E31E24] bg-red-50 text-slate-900 font-bold shadow-xs'
+                      : 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-white'
                   }`}
                 >
-                  <div className="font-bold text-gray-900 font-mono">
+                  <div className="font-bold text-slate-900 font-mono text-xs">
                     {opt.name}
                   </div>
-                  <div className="text-[11px] text-gray-600 font-mono">
+                  <div className="text-[10px] text-slate-500 mt-0.5">
                     {opt.range}
                   </div>
                 </button>
@@ -138,137 +144,156 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
             </div>
           </div>
 
-          {/* Date & Analyst Name */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Date & Analyst */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
-              <label className="block text-gray-700 font-bold mb-1">Tanggal</label>
+              <label className="block text-slate-700 font-bold mb-1 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                <span>Tanggal</span>
+              </label>
               <input
                 type="date"
+                required
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                required
-                className="w-full px-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-[#E31E24]"
+                className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none"
               />
             </div>
+
             <div>
-              <label className="block text-gray-700 font-bold mb-1">Nama Analis QC</label>
+              <label className="block text-slate-700 font-bold mb-1 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                <span>Nama Analis Shift</span>
+              </label>
               <input
                 type="text"
+                required
                 value={analystName}
                 onChange={(e) => setAnalystName(e.target.value)}
-                required
-                className="w-full px-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-[#E31E24]"
+                placeholder="Nama Analis..."
+                className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-bold text-slate-900 focus:bg-white focus:outline-none"
               />
             </div>
           </div>
 
-          {/* Dual-Mill Running Configuration (TM Mill 1 first, VRM Mill 2 second) */}
-          <div className="border-t border-gray-200 pt-3 space-y-3">
-            <span className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-              Status Operasi Dual-Mill (Bisa Jalan Berbarengan)
+          {/* Dual-Mill Setup (TM & VRM) */}
+          <div className="pt-2 border-t-2 border-slate-200 space-y-3">
+            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+              Konfigurasi Operasi Dual-Mill
             </span>
 
-            {/* Mill 1: TM */}
-            <div className={`p-3 rounded-lg border transition-colors ${tmRunning ? 'bg-amber-50/40 border-amber-300' : 'bg-gray-50 border-gray-200'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <label className="flex items-center gap-2 cursor-pointer select-none font-bold text-gray-900">
-                  <input
-                    type="checkbox"
-                    checked={tmRunning}
-                    onChange={(e) => setTmRunning(e.target.checked)}
-                    className="w-4 h-4 text-amber-600 rounded border-gray-300"
-                  />
-                  <span>Mill 1: Tube Mill (TM) - {tmRunning ? 'Aktif Running' : 'Standby'}</span>
-                </label>
+            {/* Mill 1: Tube Mill (TM) */}
+            <div className="p-3 bg-slate-100 border-2 border-slate-400 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-slate-900">
+                  <Factory className="w-4 h-4 text-amber-600" />
+                  <span>Mill 1: Tube Mill (TM)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTmRunning(!tmRunning)}
+                  className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
+                    tmRunning ? 'bg-[#16A34A] text-white' : 'bg-[#334155] text-white'
+                  }`}
+                >
+                  {tmRunning ? 'RUNNING' : 'OFF / STANDBY'}
+                </button>
               </div>
 
               {tmRunning && (
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <label className="block text-[11px] text-gray-600 mb-0.5">Produk TM</label>
+                    <label className="block text-[11px] text-slate-600 font-bold mb-0.5">Produk TM</label>
                     <select
                       value={tmProduct}
                       onChange={(e) => setTmProduct(e.target.value as ProductType)}
-                      className="w-full px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:outline-none"
+                      className="w-full p-1.5 bg-white border border-slate-400 rounded font-bold text-slate-900 focus:outline-none"
                     >
-                      {productOptions.map(p => (
+                      {productList.map(p => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-600 mb-0.5">Silo TM</label>
-                    <input
-                      type="text"
+                    <label className="block text-[11px] text-slate-600 font-bold mb-0.5">Silo TM</label>
+                    <select
                       value={tmSilo}
                       onChange={(e) => setTmSilo(e.target.value)}
-                      placeholder="SILO 5"
-                      className="w-full px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:outline-none font-mono"
-                    />
+                      className="w-full p-1.5 bg-white border border-slate-400 rounded font-bold text-slate-900 focus:outline-none"
+                    >
+                      {DEFAULT_SILO_OPTIONS.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Mill 2: VRM */}
-            <div className={`p-3 rounded-lg border transition-colors ${vrmRunning ? 'bg-sky-50/40 border-sky-300' : 'bg-gray-50 border-gray-200'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <label className="flex items-center gap-2 cursor-pointer select-none font-bold text-gray-900">
-                  <input
-                    type="checkbox"
-                    checked={vrmRunning}
-                    onChange={(e) => setVrmRunning(e.target.checked)}
-                    className="w-4 h-4 text-[#0284C7] rounded border-gray-300"
-                  />
-                  <span>Mill 2: Vertical Roller Mill (VRM) - {vrmRunning ? 'Aktif Running' : 'Standby'}</span>
-                </label>
+            {/* Mill 2: Vertical Roller Mill (VRM) */}
+            <div className="p-3 bg-slate-100 border-2 border-slate-400 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-slate-900">
+                  <Factory className="w-4 h-4 text-[#0284C7]" />
+                  <span>Mill 2: Vertical Roller Mill (VRM)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVrmRunning(!vrmRunning)}
+                  className={`px-3 py-1 rounded text-xs font-bold transition-colors ${
+                    vrmRunning ? 'bg-[#16A34A] text-white' : 'bg-[#334155] text-white'
+                  }`}
+                >
+                  {vrmRunning ? 'RUNNING' : 'OFF / STANDBY'}
+                </button>
               </div>
 
               {vrmRunning && (
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <label className="block text-[11px] text-gray-600 mb-0.5">Produk VRM</label>
+                    <label className="block text-[11px] text-slate-600 font-bold mb-0.5">Produk VRM</label>
                     <select
                       value={vrmProduct}
                       onChange={(e) => setVrmProduct(e.target.value as ProductType)}
-                      className="w-full px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:outline-none"
+                      className="w-full p-1.5 bg-white border border-slate-400 rounded font-bold text-slate-900 focus:outline-none"
                     >
-                      {productOptions.map(p => (
+                      {productList.map(p => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-600 mb-0.5">Silo VRM</label>
-                    <input
-                      type="text"
+                    <label className="block text-[11px] text-slate-600 font-bold mb-0.5">Silo VRM</label>
+                    <select
                       value={vrmSilo}
                       onChange={(e) => setVrmSilo(e.target.value)}
-                      placeholder="SILO 4"
-                      className="w-full px-2 py-1 text-xs bg-white border border-gray-300 rounded focus:outline-none font-mono"
-                    />
+                      className="w-full p-1.5 bg-white border border-slate-400 rounded font-bold text-slate-900 focus:outline-none"
+                    >
+                      {DEFAULT_SILO_OPTIONS.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}
             </div>
-
           </div>
 
-          {/* Footer */}
-          <div className="border-t border-gray-200 pt-3 flex items-center justify-end gap-2">
+          {/* Solid Actions */}
+          <div className="pt-3 border-t-2 border-slate-200 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold"
+              className="px-4 py-2 font-bold text-white bg-[#334155] hover:bg-slate-800 rounded-lg"
             >
               Batal
             </button>
             <button
               type="submit"
-              className="px-4 py-1.5 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-xs flex items-center gap-1.5"
+              className="px-5 py-2 font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-sm flex items-center gap-1.5"
             >
               <CheckCircle className="w-4 h-4" />
-              <span>Simpan & Buka Shift</span>
+              <span>Simpan & Terapkan Shift</span>
             </button>
           </div>
 

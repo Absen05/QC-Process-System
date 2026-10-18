@@ -1,5 +1,20 @@
 export type UserRole = 'analyst' | 'supervisor';
 
+export interface UserAccount {
+  id: string;
+  role: UserRole;
+  name: string; // 'AHMAD RIFAI' | 'INES NARSUL' | 'ANUGRAH MAHESA' | 'SADRANI' | 'SI (ADMIN)'
+  pin: string; // 6-digit PIN
+  updatedAt?: string;
+}
+
+export interface AuthSession {
+  isLoggedIn: boolean;
+  user: UserAccount | null;
+  loginDate: string;
+  loginShift: ShiftName;
+}
+
 export type ShiftName = 
   | 'SHIFT 1' 
   | 'SHIFT 2' 
@@ -25,11 +40,22 @@ export type ProductType =
   | 'PCC WS' 
   | 'SPK' 
   | 'OPC G' 
-  | 'OPC P';
+  | 'OPC P'
+  | string;
+
+export const DEFAULT_SILO_OPTIONS = [
+  'SILO 1',
+  'SILO 2',
+  'SILO 3',
+  'SILO 4',
+  'SILO 5',
+  'SILO 6',
+  'SILO 4+6',
+] as const;
 
 export interface MaterialPropItem {
-  name: 'Clinker' | 'Gypsum' | 'Limestone' | 'Trass' | 'Fly Ash';
-  shortName: 'Clk' | 'Gyp' | 'Lst' | 'Trass' | 'Fly Ash';
+  name: 'Clinker' | 'Gypsum' | 'Limestone' | 'Trass' | 'Fly Ash' | string;
+  shortName: 'Clk' | 'Gyp' | 'Lst' | 'Trass' | 'Fly Ash' | string;
   dry: number;        // Target Dry % (Supervisor/Override)
   h2o: number;        // Moisture H2O %
   wetFactor: number;  // Dry / (1 - H2O/100)
@@ -45,6 +71,7 @@ export interface ProporsiConfig {
   millType: MillType;
   productType: ProductType;
   siloName: string;
+  tphFeeding?: number;       // TPH / Feeding CCR (e.g. 100 t/h)
   admixtureName: string;     // e.g. "CGA Sika"
   admixturePpm: number;      // e.g. 400
   materials: {
@@ -66,8 +93,9 @@ export interface HourlyAnalysisRow {
   blaine: number | null; // cm2/gr
   residuR45: number | null; // %
   moistureH2O: number | null; // % (every 2 hr)
-  so3: number | null; // % via XRF (every 4 hr)
+  so3: number | null; // % (every 4 hr)
   freelimeFCaO: number | null; // % (every 8 hr)
+  tph: number | null; // TPH / Feeding CCR (ton/jam)
   proporsiVersionId?: string; // links to applied proporsi
   proporsiDisplay?: string; // e.g. "72% Clk | 4% Gyp | ..."
   admixtureDisplay?: string; // e.g. "CGA Sika 400 PPM"
@@ -104,6 +132,7 @@ export interface MillSessionData {
   isRunning: boolean;
   productType: ProductType;
   siloName: string;
+  tphFeeding?: number;
   admixtureName: string;
   admixturePpm: number;
   hourlyRows: HourlyAnalysisRow[];
@@ -123,7 +152,7 @@ export type IncomingParamKey =
 
 export interface UnifiedIncomingMaterial {
   id: string;
-  name: string; // Must start with "Incoming "
+  name: string; // e.g. "Incoming Trass"
   enabledParams: IncomingParamKey[];
   params: {
     blaine?: number | null;
@@ -166,7 +195,7 @@ export interface ShiftSession {
 export type MasterTargetDryMap = Record<
   MillType,
   Record<
-    ProductType,
+    string,
     {
       clinker: number;
       gypsum: number;
@@ -176,3 +205,28 @@ export type MasterTargetDryMap = Record<
     }
   >
 >;
+
+// Quality Specification standard for each product
+export interface QualityParamSpec {
+  min: number | null;
+  max: number | null;
+  std: number | null;
+}
+
+export interface ProductQualitySpec {
+  productType: string;
+  blaine: QualityParamSpec;
+  residuR45: QualityParamSpec;
+  moistureH2O: QualityParamSpec;
+  so3: QualityParamSpec;
+  freelimeFCaO: QualityParamSpec;
+}
+
+// Master CGA Setting for each product
+export interface CgaMasterSetting {
+  id: string;
+  productType: string;
+  cgaBrand: string; // 'SIKA' | 'CONCH' | 'GCP' | string
+  dosagePpm: number;
+  notes?: string;
+}

@@ -3,7 +3,7 @@
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: #E2E8F0;
+    background-color: #CBD5E1; /* #CBD5E1 (bg-slate-300) - Soothing, eye-friendly dark gray for laboratory use */
     color: #0F172A;
   }
 
@@ -15,11 +15,13 @@
   }
 }
 
-/* Custom Utilities for PT Cemindo Gemilang / Semen Merah Putih Theme */
+/* Custom Brand Utilities */
 :root {
   --brand-red: #E31E24;
   --brand-blue: #0284C7;
   --brand-green: #16A34A;
+  --brand-slate: #334155;
+  --brand-amber: #D97706;
 }
 
 .text-brand-red { color: #E31E24; }
@@ -34,22 +36,22 @@
 .bg-brand-green { background-color: #16A34A; }
 .border-brand-green { border-color: #16A34A; }
 
-/* Eye-Friendly Card with Crisp Distinct Border */
+/* Eye-Friendly Cards with Distinct Firm Borders (border-slate-500) */
 .qc-card {
   background-color: #FFFFFF;
-  border: 1.5px solid #CBD5E1;
+  border: 1.5px solid #64748B;
   border-radius: 0.75rem;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 2px 4px 0 rgba(15, 23, 42, 0.08);
 }
 
 .qc-card-header {
   background-color: #F8FAFC;
-  border-bottom: 1.5px solid #CBD5E1;
+  border-bottom: 1.5px solid #64748B;
 }
 
 /* Excel-like cell input focus styling */
 .excel-cell-input {
-  transition: all 0.15s ease-in-out;
+  transition: all 0.12s ease-in-out;
 }
 
 .excel-cell-input:focus {
@@ -58,26 +60,26 @@
   z-index: 10;
 }
 
-/* Crisp Excel Grid borders (horizontal and vertical lines) */
+/* Excel Grid borders for table cells */
 .excel-border-cell {
-  border-right: 1px solid #CBD5E1;
-  border-bottom: 1px solid #CBD5E1;
+  border-right: 1px solid #94A3B8;
+  border-bottom: 1px solid #94A3B8;
 }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
-  background: #E2E8F0;
+  background: #CBD5E1;
 }
 ::-webkit-scrollbar-thumb {
-  background: #94A3B8;
+  background: #64748B;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748B;
+  background: #475569;
 }
 
 @media print {

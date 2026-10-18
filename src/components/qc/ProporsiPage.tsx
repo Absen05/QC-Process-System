@@ -5,10 +5,12 @@ import {
   ProductType, 
   ProporsiConfig, 
   MasterTargetDryMap,
-  MillSessionData
+  MillSessionData,
+  DEFAULT_SILO_OPTIONS
 } from '../../types/qc';
 import { calculateWetBase } from '../../utils/qcCalculations';
 import { renderCcrImage, dataUrlToBlob } from '../../utils/ccrCanvasRenderer';
+import { getStoredProductList } from '../../services/qcStorage';
 import { 
   Camera, 
   Save, 
@@ -42,8 +44,10 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   const millType: MillType = selectedMillCode === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)';
   const currentMillData: MillSessionData = selectedMillCode === 'TM' ? session.tm : session.vrm;
 
+  const [productList, setProductList] = useState<string[]>(() => getStoredProductList());
   const [productType, setProductType] = useState<ProductType>(currentMillData.productType);
   const [siloName, setSiloName] = useState<string>(currentMillData.siloName);
+  const [tphCapacity, setTphCapacity] = useState<number>(currentMillData.tphFeeding || 100.0);
   const [admixtureName, setAdmixtureName] = useState<string>(currentMillData.admixtureName);
   const [admixturePpm, setAdmixturePpm] = useState<number>(currentMillData.admixturePpm);
   const [bufferMaterial, setBufferMaterial] = useState<'trass' | 'clinker'>('trass');
@@ -58,6 +62,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     const mill = selectedMillCode === 'TM' ? session.tm : session.vrm;
     setProductType(mill.productType);
     setSiloName(mill.siloName);
+    setTphCapacity(mill.tphFeeding || 100.0);
     setAdmixtureName(mill.admixtureName);
     setAdmixturePpm(mill.admixturePpm);
 
@@ -78,7 +83,9 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         flyAsh: latestProp.materials.flyAsh.h2o,
       });
     } else {
-      const std = masterTargets[selectedMillCode === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)'][mill.productType];
+      const std = masterTargets[selectedMillCode === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)']?.[mill.productType] || {
+        clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
+      };
       setDryValues({ ...std });
     }
   }, [selectedMillCode]);
@@ -136,7 +143,9 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     flyAsh: { dry: dryValues.flyAsh, h2o: h2oValues.flyAsh },
   }, bufferMaterial);
 
-  // Calculate W Basah Ton/Jam items for live UI display
+  // Calculate W Basah Ton/Jam items for live UI display (scaled with TPH if specified)
+  const scaleFactor = tphCapacity > 0 ? (tphCapacity / 100.0) : 1.0;
+
   const materialsList = [
     { key: 'clinker' as const, label: 'CLINKER', item: calculation.clinker },
     { key: 'gypsum' as const, label: 'GYPSUM', item: calculation.gypsum },
@@ -149,7 +158,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   const itemsWithWBasah = materialsList.map(m => {
     const dry = m.item.dry;
     const h2o = m.item.h2o;
-    const wBasah = dry > 0 ? (dry / (1 - (h2o / 100))) : 0;
+    const wBasah = dry > 0 ? (dry / (1 - (h2o / 100))) * scaleFactor : 0;
     sumWBasah += wBasah;
     return {
       ...m,
@@ -158,7 +167,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   });
 
   const totalWBasahFormatted = sumWBasah.toFixed(2);
-  const airMenguapFormatted = Math.max(0, sumWBasah - 100.0).toFixed(2);
+  const airMenguapFormatted = Math.max(0, sumWBasah - (100.0 * scaleFactor)).toFixed(2);
 
   const isOverride = 
     dryValues.clinker !== defaultStandard.clinker ||
@@ -192,7 +201,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     setH2oValues(prev => ({ ...prev, [key]: isNaN(num) ? 0 : num }));
   };
 
-  // Save & Activate specifically to the selected mill without touching the other mill
+  // Save & Activate specifically to the selected mill
   const handleSaveAndActivate = () => {
     if (!calculation.isValidDry || !calculation.isValidWet) {
       alert('Total Proporsi Dry dan Wet wajib tepat 100.0% sebelum dapat disimpan.');
@@ -203,7 +212,6 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     const newPropId = `prop_${selectedMillCode.toLowerCase()}_v${versionNum}_${Date.now()}`;
     const newPropLabel = `Proporsi ${versionNum} (${appliedHour} - ${currentMillData.hourlyRows[currentMillData.hourlyRows.length - 1]?.hour || 'Selesai'})`;
 
-    // Close previous proporsi end hour for this mill
     const updatedHistory = currentMillData.proporsiHistory.map((p, idx) => {
       if (idx === currentMillData.proporsiHistory.length - 1) {
         return { ...p, endAtHour: appliedHour };
@@ -220,6 +228,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       millType,
       productType,
       siloName,
+      tphFeeding: tphCapacity,
       admixtureName,
       admixturePpm,
       materials: {
@@ -241,7 +250,8 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     const appliedIndex = currentMillData.hourlyRows.findIndex(r => r.hour === appliedHour);
     const startIdx = appliedIndex !== -1 ? appliedIndex : 0;
 
-    const propSummary = `${calculation.clinker.wet}% Clk | ${calculation.gypsum.wet}% Gyp | ${calculation.limestone.wet}% Lst | ${calculation.trass.wet}% Trass | ${calculation.flyAsh.wet}% FA`;
+    // Display summary with DRY values on grid as per Point 6
+    const propSummary = `${calculation.clinker.dry}% Clk | ${calculation.gypsum.dry}% Gyp | ${calculation.limestone.dry}% Lst | ${calculation.trass.dry}% Trass | ${calculation.flyAsh.dry}% FA`;
     const admSummary = `${admixtureName} ${admixturePpm} PPM`;
 
     const updatedRows = currentMillData.hourlyRows.map((row, idx) => {
@@ -251,6 +261,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
           proporsiVersionId: newPropId,
           proporsiDisplay: propSummary,
           admixtureDisplay: admSummary,
+          tph: row.tph ?? tphCapacity,
         };
       }
       return row;
@@ -260,6 +271,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       ...currentMillData,
       productType,
       siloName,
+      tphFeeding: tphCapacity,
       admixtureName,
       admixturePpm,
       hourlyRows: updatedRows,
@@ -274,7 +286,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     alert(`✅ Proporsi baru untuk ${selectedMillCode} [${newPropLabel}] berhasil diaktifkan mulai jam ${appliedHour}!`);
   };
 
-  // Generate CCR Image via high-resolution HTML5 Canvas renderer
+  // Generate CCR Image via HTML5 Canvas renderer
   const handleGenerateCcrImage = async () => {
     setIsGeneratingImage(true);
     setShowShareModal(true);
@@ -329,21 +341,21 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-sans">
 
       {/* Target Mill & Product Controls Bar */}
-      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-3.5 shadow-xs">
+      <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
           {/* Dual-Mill Switcher for Setting Proporsi */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-300 rounded-lg shrink-0">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200 border-2 border-slate-400 rounded-lg shrink-0">
             <button
               type="button"
               onClick={() => setSelectedMillCode('TM')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all ${
                 selectedMillCode === 'TM'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-300'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
+                  : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-amber-600" />
@@ -352,10 +364,10 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
             <button
               type="button"
               onClick={() => setSelectedMillCode('VRM')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all ${
                 selectedMillCode === 'VRM'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-300'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
+                  : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-[#0284C7]" />
@@ -363,31 +375,47 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
             </button>
           </div>
 
-          {/* Product, Silo, Buffer & Reset */}
+          {/* Product, Silo, Buffer, TPH Feeding & Reset */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
+            {/* Dynamic Product Dropdown */}
             <select
               value={productType}
               onChange={(e) => handleProductChange(e.target.value as ProductType)}
-              className="px-3 py-1.5 font-bold bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400"
+              className="px-3 py-2 font-bold bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
             >
-              <option value="PCC Plus FA">PCC Plus FA</option>
-              <option value="PCC NON FA">PCC NON FA</option>
-              <option value="PCC WS">PCC WS</option>
-              <option value="SPK">SPK</option>
-              <option value="OPC G">OPC G</option>
-              <option value="OPC P">OPC P</option>
+              {productList.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
             </select>
 
-            <input
-              type="text"
+            {/* Default Silo Dropdown */}
+            <select
               value={siloName}
               onChange={(e) => setSiloName(e.target.value)}
-              placeholder="Silo"
-              className="w-24 px-2.5 py-1.5 font-bold bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400"
-            />
+              className="px-3 py-2 font-bold bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
+            >
+              {DEFAULT_SILO_OPTIONS.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
 
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-300 rounded-lg text-slate-700">
-              <span className="text-[11px] font-medium text-slate-500">Buffer:</span>
+            {/* TPH / Feeding CCR Input */}
+            <div className="flex items-center gap-1 px-2.5 py-1 bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-800">
+              <span className="font-bold text-[11px] text-slate-600">TPH:</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="1"
+                value={tphCapacity}
+                onChange={(e) => setTphCapacity(parseFloat(e.target.value) || 0)}
+                placeholder="100"
+                className="w-14 bg-transparent font-mono font-bold text-xs text-slate-900 text-right focus:outline-none"
+              />
+              <span className="text-[10px] text-slate-500 font-mono">t/h</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 border border-slate-400 rounded-lg text-slate-700">
+              <span className="text-[11px] font-bold text-slate-600">Buffer:</span>
               <select
                 value={bufferMaterial}
                 onChange={(e) => setBufferMaterial(e.target.value as 'trass' | 'clinker')}
@@ -401,14 +429,14 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
             {isOverride ? (
               <button
                 onClick={handleResetToStandard}
-                className="px-2.5 py-1.5 text-[11px] font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg flex items-center gap-1 transition-colors"
+                className="px-2.5 py-2 text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-400 rounded-lg flex items-center gap-1 transition-colors"
                 title="Kembalikan target ke standar supervisor"
               >
-                <RotateCcw className="w-3 h-3" />
+                <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset Standar</span>
               </button>
             ) : (
-              <span className="text-[11px] text-slate-500 font-medium px-2 py-1 bg-slate-50 rounded border border-slate-200">
+              <span className="text-[11px] text-slate-600 font-bold px-2 py-1.5 bg-slate-100 rounded border border-slate-300">
                 Standar Master
               </span>
             )}
@@ -418,22 +446,22 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       </div>
 
       {/* Main Calculation & Setpoint Feeder Card (100% Mirroring CCR Image Reference) */}
-      <div className="bg-white border-1.5 border-slate-300 rounded-xl shadow-xs overflow-hidden">
+      <div className="bg-white border-2 border-slate-500 rounded-xl shadow-sm overflow-hidden">
         
         {/* Card Header (HASIL SETPOINT FEEDER & WET BASE Badge) */}
-        <div className="p-4 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
+        <div className="p-4 bg-slate-100 border-b-2 border-slate-400 flex items-center justify-between">
           <div>
             <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
               <Sliders className="w-4 h-4 text-[#E31E24]" />
               <span>HASIL SETPOINT FEEDER — {selectedMillCode}</span>
             </h2>
             <p className="text-xs text-slate-500 font-normal mt-0.5">
-              Input manual nilai %Wet ke feeder CCR
+              Input manual nilai %Wet ke feeder CCR · Basis Feeding {tphCapacity} ton/jam
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-red-50 border border-red-200 text-[#E31E24] font-bold text-xs rounded-md uppercase tracking-wider">
+            <span className="px-3 py-1 bg-red-100 border border-red-300 text-[#E31E24] font-bold text-xs rounded-md uppercase tracking-wider">
               WET BASE
             </span>
           </div>
@@ -443,34 +471,34 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-mono">
             <thead>
-              <tr className="bg-slate-100 text-slate-700 border-b border-slate-300 font-bold select-none">
-                <th className="py-2.5 px-3 w-40 border-r border-slate-300 font-sans text-slate-800">
+              <tr className="bg-slate-600 text-white font-bold border-b-2 border-slate-500 select-none">
+                <th className="py-2.5 px-3 w-40 border-r border-slate-500 font-sans">
                   MATERIAL
                 </th>
-                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-300 bg-amber-50/40 text-slate-700">
+                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-500 bg-slate-700 text-amber-300">
                   %DRY
                 </th>
-                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-300 bg-blue-50/40 text-slate-700">
+                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-500 bg-slate-700 text-sky-300">
                   MOIST (%)
                 </th>
-                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-300 text-slate-700">
+                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-500">
                   W BASAH (t/h)
                 </th>
-                <th className="py-2.5 px-3 w-36 text-center bg-red-50/40 text-[#E31E24] font-bold">
+                <th className="py-2.5 px-3 w-36 text-center bg-red-900/40 text-red-100 font-bold">
                   %WET (CCR)
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-300">
               
               {itemsWithWBasah.map((m) => (
-                <tr key={m.key} className="hover:bg-slate-50/80 transition-colors">
+                <tr key={m.key} className="hover:bg-slate-50 transition-colors">
                   {/* Material Name */}
                   <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900">
                     <div className="flex items-center justify-between">
                       <span>{m.label}</span>
                       {m.isBuffer && (
-                        <span className="text-[10px] font-sans font-medium text-[#0284C7] bg-sky-50 px-1 py-0.2 rounded border border-sky-200">
+                        <span className="text-[10px] font-sans font-medium text-[#0284C7] bg-sky-50 px-1 py-0.2 rounded border border-sky-300">
                           buffer
                         </span>
                       )}
@@ -508,7 +536,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
 
                   {/* %WET Badge */}
                   <td className="py-1.5 px-3 text-center">
-                    <span className="inline-block px-3 py-1 bg-red-50 border border-red-200 text-[#E31E24] font-bold text-xs rounded font-mono shadow-2xs">
+                    <span className="inline-block px-3 py-1 bg-red-100 border border-red-300 text-[#E31E24] font-bold text-xs rounded font-mono shadow-2xs">
                       {m.item.wet.toFixed(1)}%
                     </span>
                   </td>
@@ -516,7 +544,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               ))}
 
               {/* Baris TOTAL */}
-              <tr className="bg-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
+              <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
                 <td className="py-2.5 px-3 border-r border-slate-300 font-sans">
                   TOTAL
                 </td>
@@ -530,7 +558,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                   {totalWBasahFormatted} t/h
                 </td>
                 <td className="py-1.5 px-3 text-center">
-                  <span className="inline-block px-3 py-1 bg-red-100 border border-red-300 text-[#E31E24] font-bold text-xs rounded font-mono shadow-2xs">
+                  <span className="inline-block px-3 py-1 bg-red-200 border border-red-400 text-[#E31E24] font-bold text-xs rounded font-mono shadow-2xs">
                     {calculation.wetTotal.toFixed(1)}%
                   </span>
                 </td>
@@ -541,25 +569,25 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         </div>
 
         {/* 2 Kotak Summary Bersanding: Total Massa Basah & Air Menguap (Mill) */}
-        <div className="p-4 bg-slate-50/50 border-t border-slate-300">
+        <div className="p-4 bg-slate-50 border-t-2 border-slate-300">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             
             {/* Kotak Kiri: Total Massa Basah */}
-            <div className="bg-white border border-slate-300 rounded-xl p-3.5 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-500 block">
-                Total Massa Basah
+            <div className="bg-white border-2 border-slate-400 rounded-xl p-3.5 shadow-2xs">
+              <span className="text-[11px] font-semibold text-slate-600 block">
+                Total Massa Basah (Input Feeder)
               </span>
               <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 block mt-0.5">
                 {totalWBasahFormatted} ton/jam
               </span>
               <span className="text-[10px] text-slate-400 block mt-0.5">
-                Feeder mill input
+                Feeding mill actual
               </span>
             </div>
 
             {/* Kotak Kanan: Air Menguap (Mill) */}
-            <div className="bg-white border border-slate-300 rounded-xl p-3.5 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-500 block">
+            <div className="bg-white border-2 border-slate-400 rounded-xl p-3.5 shadow-2xs">
+              <span className="text-[11px] font-semibold text-slate-600 block">
                 Air Menguap (Mill)
               </span>
               <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 block mt-0.5">
@@ -574,15 +602,15 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         </div>
 
         {/* Admixture & Hour Controls Bar */}
-        <div className="p-3.5 bg-slate-100/60 border-t border-slate-300 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        <div className="p-3.5 bg-slate-100 border-t-2 border-slate-300 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <div>
-            <label className="block text-slate-700 font-bold mb-1">Admixture</label>
+            <label className="block text-slate-700 font-bold mb-1">Admixture (CGA)</label>
             <input
               type="text"
               value={admixtureName}
               onChange={(e) => setAdmixtureName(e.target.value)}
               placeholder="CGA Sika"
-              className="w-full px-2.5 py-1.5 font-semibold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-400"
+              className="w-full px-2.5 py-1.5 font-semibold bg-white border border-slate-400 rounded-lg focus:outline-none"
             />
           </div>
 
@@ -593,7 +621,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               value={admixturePpm}
               onChange={(e) => setAdmixturePpm(parseInt(e.target.value) || 0)}
               placeholder="400"
-              className="w-full px-2.5 py-1.5 font-mono font-semibold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-400"
+              className="w-full px-2.5 py-1.5 font-mono font-semibold bg-white border border-slate-400 rounded-lg focus:outline-none"
             />
           </div>
 
@@ -602,7 +630,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
             <select
               value={appliedHour}
               onChange={(e) => setAppliedHour(e.target.value)}
-              className="w-full px-2.5 py-1.5 font-mono font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-400"
+              className="w-full px-2.5 py-1.5 font-mono font-bold bg-white border border-slate-400 rounded-lg focus:outline-none"
             >
               {currentMillData.hourlyRows.map(r => (
                 <option key={r.hour} value={r.hour}>
@@ -613,9 +641,9 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
           </div>
         </div>
 
-        {/* Actions Bar */}
-        <div className="p-3.5 bg-white border-t border-slate-300 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="font-mono text-slate-600">
+        {/* Solid Actions Bar */}
+        <div className="p-3.5 bg-white border-t-2 border-slate-300 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="font-mono text-slate-700">
             Target Mill: <strong>{selectedMillCode}</strong> · {calculation.isValidWet && calculation.isValidDry ? (
               <span className="text-[#16A34A] font-bold">100.0% Valid</span>
             ) : (
@@ -628,9 +656,9 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               type="button"
               onClick={handleGenerateCcrImage}
               disabled={!calculation.isValidDry || !calculation.isValidWet}
-              className="px-3.5 py-2 font-bold text-[#0284C7] bg-sky-50 hover:bg-sky-100 disabled:opacity-40 border border-sky-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
+              className="px-4 py-2 font-bold text-white bg-[#0284C7] hover:bg-sky-700 disabled:opacity-40 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
             >
-              <Camera className="w-3.5 h-3.5" />
+              <Camera className="w-4 h-4" />
               <span>Share ke CCR (Gambar)</span>
             </button>
 
@@ -638,9 +666,9 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               type="button"
               onClick={handleSaveAndActivate}
               disabled={!calculation.isValidDry || !calculation.isValidWet}
-              className="px-4 py-2 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 disabled:opacity-40 rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-5 py-2 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 disabled:opacity-40 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
             >
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-4 h-4" />
               <span>Simpan & Aktifkan ({selectedMillCode})</span>
             </button>
           </div>
@@ -649,13 +677,13 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       </div>
 
       {/* Riwayat Proporsi Khusus Mill Ini */}
-      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-4 shadow-xs">
-        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 pb-2 border-b border-slate-200">
-          <Clock className="w-3.5 h-3.5 text-slate-500" />
+      <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm">
+        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 pb-2 border-b border-slate-300">
+          <Clock className="w-4 h-4 text-slate-600" />
           <span>Riwayat Proporsi {selectedMillCode} Shift Ini</span>
         </h3>
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-slate-200">
           {currentMillData.proporsiHistory.map((prop, idx) => {
             const m = prop.materials;
             const isLatest = idx === currentMillData.proporsiHistory.length - 1;
@@ -666,17 +694,20 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-900">{prop.label}</span>
                     {isLatest && (
-                      <span className="px-1.5 py-0.2 text-[10px] font-bold text-white bg-[#16A34A] rounded">
+                      <span className="px-2 py-0.5 text-[10px] font-bold text-white bg-[#16A34A] rounded">
                         Aktif
                       </span>
                     )}
                   </div>
-                  <div className="font-mono text-slate-600 text-[11px] mt-0.5">
-                    {m.clinker.wet}% Clk | {m.gypsum.wet}% Gyp | {m.limestone.wet}% Lst | {m.trass.wet}% Trass | {m.flyAsh.wet}% FA
+                  <div className="font-mono text-slate-700 text-[11px] mt-0.5">
+                    Target Dry: {m.clinker.dry}% Clk | {m.gypsum.dry}% Gyp | {m.limestone.dry}% Lst | {m.trass.dry}% Trass | {m.flyAsh.dry}% FA
+                  </div>
+                  <div className="font-mono text-slate-500 text-[10px]">
+                    Wet Base CCR: {m.clinker.wet}% Clk | {m.gypsum.wet}% Gyp | {m.limestone.wet}% Lst | {m.trass.wet}% Trass | {m.flyAsh.wet}% FA
                   </div>
                 </div>
-                <div className="text-slate-500 font-mono text-[11px]">
-                  {prop.admixtureName} {prop.admixturePpm} PPM
+                <div className="text-slate-600 font-mono text-[11px]">
+                  {prop.admixtureName} {prop.admixturePpm} PPM · {prop.tphFeeding || 100} t/h
                 </div>
               </div>
             );
@@ -687,17 +718,17 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       {/* Share to CCR Modal with Rendered PNG Preview */}
       {showShareModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl border-1.5 border-slate-300 overflow-hidden">
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <Camera className="w-3.5 h-3.5 text-[#0284C7]" />
+          <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border-2 border-slate-500 overflow-hidden">
+            <div className="px-4 py-3 bg-slate-800 text-white border-b-2 border-slate-600 flex items-center justify-between">
+              <h3 className="text-xs font-bold flex items-center gap-1.5">
+                <Camera className="w-4 h-4 text-[#0284C7]" />
                 <span>Gambar Setpoint Feeder CCR ({selectedMillCode})</span>
               </h3>
               <button 
                 onClick={() => setShowShareModal(false)} 
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+                className="text-slate-300 hover:text-white p-1 rounded-md"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
@@ -718,11 +749,11 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               ) : null}
             </div>
 
-            <div className="px-4 py-3 bg-slate-50 border-t border-slate-300 flex items-center justify-between text-xs">
+            <div className="px-4 py-3 bg-slate-100 border-t-2 border-slate-300 flex items-center justify-between text-xs">
               <button
                 type="button"
                 onClick={() => setShowShareModal(false)}
-                className="text-slate-600 hover:text-slate-800 font-semibold px-2 py-1"
+                className="px-3 py-1.5 font-bold text-white bg-[#334155] hover:bg-slate-800 rounded-lg"
               >
                 Tutup
               </button>
@@ -732,7 +763,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                   type="button"
                   onClick={handleDownloadImage}
                   disabled={!generatedImageUrl}
-                  className="px-3 py-1.5 font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-1 shadow-2xs"
+                  className="px-3.5 py-1.5 font-bold text-white bg-[#0284C7] hover:bg-sky-700 disabled:opacity-40 rounded-lg flex items-center gap-1 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Unduh PNG</span>
@@ -742,7 +773,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                   type="button"
                   onClick={handleCopyImageToClipboard}
                   disabled={!generatedImageUrl}
-                  className="px-3.5 py-1.5 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-xs flex items-center gap-1 transition-colors"
+                  className="px-4 py-1.5 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 disabled:opacity-40 rounded-lg shadow-xs flex items-center gap-1 transition-colors"
                 >
                   {copySuccess ? (
                     <>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShiftSession } from '../../types/qc';
 import { generateWhatsAppReport } from '../../utils/qcCalculations';
-import { Copy, Check, ExternalLink, FileText } from 'lucide-react';
+import { Copy, Check, MessageSquare, ExternalLink } from 'lucide-react';
 
 interface WhatsAppReportPageProps {
   session: ShiftSession;
@@ -10,6 +10,7 @@ interface WhatsAppReportPageProps {
 export const WhatsAppReportPage: React.FC<WhatsAppReportPageProps> = ({ session }) => {
   const [copied, setCopied] = useState(false);
 
+  // Real-time generated WhatsApp report text with Target Dry formulations & TPH
   const reportText = generateWhatsAppReport(session);
 
   const handleCopy = async () => {
@@ -28,87 +29,98 @@ export const WhatsAppReportPage: React.FC<WhatsAppReportPageProps> = ({ session 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-sans">
 
-      {/* Top Header & Copy Action */}
-      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Top Header & Big Copy Button */}
+      <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm sm:text-base font-bold text-slate-900">
-            LAPORAN AKHIR SHIFT (WHATSAPP)
-          </h2>
-          <p className="text-xs text-slate-500 font-mono">
-            {session.shiftName} ({session.shiftHours}) · Dual-Mill & Unified Incoming
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-[#16A34A] text-white">
+              <MessageSquare className="w-4 h-4" />
+            </span>
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase">
+              LAPORAN AKHIR SHIFT (WHATSAPP)
+            </h2>
+          </div>
+          <p className="text-xs text-slate-500 font-mono mt-0.5">
+            {session.shiftName} ({session.shiftHours}) · Proporsi Menggunakan Target Dry (Kering)
           </p>
         </div>
 
+        {/* Big Solid Green Copy Button */}
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={handleCopy}
-            className="px-4 py-2 text-xs font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+            className="px-6 py-3 text-sm font-bold text-white bg-[#16A34A] hover:bg-emerald-700 active:scale-95 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wide"
           >
             {copied ? (
               <>
-                <Check className="w-4 h-4" />
-                <span>Berhasil Disalin!</span>
+                <Check className="w-5 h-5" />
+                <span>LAPORAN TERSALIN!</span>
               </>
             ) : (
               <>
-                <Copy className="w-4 h-4" />
-                <span>Salin Laporan WA</span>
+                <Copy className="w-5 h-5" />
+                <span>📋 COPY REPORT WA</span>
               </>
             )}
           </button>
 
           <button
+            type="button"
             onClick={handleOpenWhatsApp}
-            className="px-3.5 py-2 text-xs font-bold text-[#0284C7] bg-sky-50 hover:bg-sky-100 border border-sky-300 rounded-lg transition-colors flex items-center gap-1.5"
+            className="px-4 py-3 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-xl shadow-sm transition-colors flex items-center justify-center gap-1.5"
+            title="Buka langsung ke WhatsApp Web / App"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
+            <ExternalLink className="w-4 h-4" />
             <span>Kirim WA</span>
           </button>
         </div>
       </div>
 
-      {/* WhatsApp Message Preview Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Direct Copy-Paste Text Area (Poin 6: Tanpa Modal Berbelit) */}
+      <div className="bg-white border-2 border-slate-500 rounded-xl p-4 sm:p-5 shadow-sm space-y-3">
         
-        {/* WhatsApp Chat Simulation */}
-        <div className="lg:col-span-2 bg-[#EFEAE2] border-1.5 border-slate-300 rounded-xl p-4 sm:p-5 shadow-xs overflow-hidden">
-          <div className="bg-white rounded-lg p-4 shadow-xs border border-slate-300 max-w-2xl mx-auto">
-            <div className="whitespace-pre-wrap font-mono text-xs sm:text-[13px] text-slate-900 leading-relaxed select-all">
-              {reportText}
-            </div>
-            <div className="text-right text-[10px] text-slate-400 mt-2 font-mono">
-              {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ✓✓
-            </div>
-          </div>
+        <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-200">
+          <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+            Kotak Teks Real-Time (Siap Salin & Kirim Langsung):
+          </span>
+          <span className="text-[11px] text-slate-400 font-mono">
+            {reportText.length} karakter
+          </span>
         </div>
 
-        {/* Raw Text Box */}
-        <div className="bg-white border-1.5 border-slate-300 rounded-xl p-4 shadow-xs flex flex-col justify-between space-y-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-              <FileText className="w-3.5 h-3.5 text-slate-500" />
-              <span>Teks Format Mentah</span>
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Dapat disalin langsung untuk diteruskan ke grup koordinasi WhatsApp CCR dan manajemen.
-            </p>
-          </div>
+        {/* Scaled Textarea with monospace font and high readability */}
+        <textarea
+          readOnly
+          value={reportText}
+          rows={18}
+          className="w-full p-4 bg-slate-50 border-2 border-slate-400 rounded-xl font-mono text-xs sm:text-sm text-slate-900 leading-relaxed resize-none focus:outline-none focus:bg-white select-all shadow-inner"
+        />
 
-          <textarea
-            readOnly
-            value={reportText}
-            rows={16}
-            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg font-mono text-[11px] text-slate-800 leading-relaxed focus:outline-none focus:bg-white resize-none"
-          />
+        {/* Bottom Big Copy Button for frictionless mobile/desktop usage */}
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-[11px] text-slate-500 font-mono">
+            *Tekan tombol untuk otomatis menyalin ke clipboard, lalu paste (Ctrl+V) ke grup koordinasi CCR.
+          </p>
 
           <button
+            type="button"
             onClick={handleCopy}
-            className="w-full py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+            className="w-full sm:w-auto px-6 py-3 text-sm font-bold text-white bg-[#16A34A] hover:bg-emerald-700 active:scale-95 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wide"
           >
-            <Copy className="w-3.5 h-3.5" />
-            <span>{copied ? 'Tersalin!' : 'Salin Seluruh Teks'}</span>
+            {copied ? (
+              <>
+                <Check className="w-5 h-5" />
+                <span>LAPORAN TERSALIN!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-5 h-5" />
+                <span>📋 COPY REPORT WA</span>
+              </>
+            )}
           </button>
         </div>
 

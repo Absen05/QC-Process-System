@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShiftSession, HourlyAnalysisRow, MillSessionData } from '../../types/qc';
+import { ShiftSession, HourlyAnalysisRow, MillSessionData, DEFAULT_SILO_OPTIONS } from '../../types/qc';
 import { Factory, Power, ArrowRight } from 'lucide-react';
 
 interface DataGridPageProps {
@@ -129,62 +129,62 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-sans">
 
       {/* Dual-Mill Switcher Bar & Mill Status Controls */}
-      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-3 shadow-xs">
+      <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
           {/* Sub-Tab Switcher: TM (Mill 1) first, VRM (Mill 2) second */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-300 rounded-lg shrink-0">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200 border-2 border-slate-400 rounded-lg shrink-0">
             <button
               onClick={() => setActiveMillTab('TM')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all ${
                 activeMillTab === 'TM'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-300'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
+                  : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-amber-600" />
               <span>Mill 1: TM</span>
-              <span className={`w-2 h-2 rounded-full ${session.tm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-300'}`} />
+              <span className={`w-2.5 h-2.5 rounded-full ${session.tm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-400'}`} />
             </button>
 
             <button
               onClick={() => setActiveMillTab('VRM')}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all ${
                 activeMillTab === 'VRM'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-300'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
+                  : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-[#0284C7]" />
               <span>Mill 2: VRM</span>
-              <span className={`w-2 h-2 rounded-full ${session.vrm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-300'}`} />
+              <span className={`w-2.5 h-2.5 rounded-full ${session.vrm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-400'}`} />
             </button>
           </div>
 
-          {/* Active Mill Settings & Running Toggle */}
+          {/* Active Mill Settings & Solid Action Controls */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Running Status Toggle */}
+            {/* Running Status Toggle (Solid button) */}
             <button
               type="button"
               onClick={handleToggleRunning}
-              className={`px-3 py-1.5 rounded-lg font-bold border transition-colors flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-lg font-bold shadow-xs transition-colors flex items-center gap-1.5 ${
                 activeMillData.isRunning
-                  ? 'bg-green-50 text-[#16A34A] border-green-300 hover:bg-green-100'
-                  : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                  ? 'bg-[#16A34A] text-white hover:bg-emerald-700'
+                  : 'bg-[#334155] text-white hover:bg-slate-800'
               }`}
             >
-              <Power className="w-3.5 h-3.5" />
-              <span>{activeMillData.isRunning ? 'Running' : 'Standby / Off'}</span>
+              <Power className="w-4 h-4" />
+              <span>{activeMillData.isRunning ? 'Mill: RUNNING' : 'Mill: STANDBY / OFF'}</span>
             </button>
 
             {/* Product Selector for Active Mill */}
             <select
               value={activeMillData.productType}
               onChange={(e) => handleMillSpecChange('productType', e.target.value)}
-              className="px-2.5 py-1.5 font-bold bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400"
+              className="px-3 py-2 font-bold bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
             >
               <option value="PCC Plus FA">PCC Plus FA</option>
               <option value="PCC NON FA">PCC NON FA</option>
@@ -194,87 +194,85 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
               <option value="OPC P">OPC P</option>
             </select>
 
-            {/* Silo Input for Active Mill */}
-            <input
-              type="text"
+            {/* Default Silo Dropdown (Poin 4: SILO 1-6 & SILO 4+6) */}
+            <select
               value={activeMillData.siloName}
               onChange={(e) => handleMillSpecChange('siloName', e.target.value)}
-              placeholder="Silo"
-              className="w-24 px-2.5 py-1.5 font-bold bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400"
-            />
+              className="px-3 py-2 font-bold bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
+            >
+              {DEFAULT_SILO_OPTIONS.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
 
-            {/* Quick Link to Proporsi */}
+            {/* Solid Button: Quick Link to Proporsi */}
             <button
               onClick={() => onNavigateToProporsi(activeMillTab)}
-              className="px-3 py-1.5 text-xs font-bold text-[#0284C7] bg-sky-50 hover:bg-sky-100 border border-sky-300 rounded-lg transition-colors flex items-center gap-1 ml-auto sm:ml-0"
+              className="px-3.5 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-xs transition-colors flex items-center gap-1 ml-auto sm:ml-0"
             >
               <span>Set Proporsi</span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
         </div>
       </div>
 
-      {/* Main Excel-like Data Grid with Sticky Hour Column & Clear Grid Lines */}
-      <div className="bg-white border-1.5 border-slate-300 rounded-xl shadow-xs overflow-hidden">
+      {/* Main Excel-like Data Grid with Solid Header & TPH Feeding */}
+      <div className="bg-white border-2 border-slate-500 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto relative">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-100 text-slate-700 border-b border-slate-300 font-semibold select-none">
-                {/* Sticky Left Column for Jam on Mobile */}
-                <th className="py-2.5 px-3 border-r border-b border-slate-300 w-16 text-center font-mono sticky left-0 bg-slate-100 z-10 shadow-[1px_0_0_0_#cbd5e1]">
-                  Jam
+              {/* Clean Header Row without (1 Jam), (2 Jam), XRF, etc. Solid dark slate header! */}
+              <tr className="bg-slate-600 text-white font-bold border-b-2 border-slate-500 select-none">
+                {/* Sticky Left Column for Jam */}
+                <th className="py-2.5 px-3 border-r border-slate-500 w-16 text-center font-mono sticky left-0 bg-slate-700 z-10">
+                  JAM
                 </th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-300 w-28 text-right bg-red-50/40">
-                  <div>Blaine</div>
-                  <div className="text-[10px] text-slate-400 font-normal font-mono">(cm²/gr)</div>
+                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right">
+                  BLAINE
                 </th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-300 w-28 text-right bg-red-50/40">
-                  <div>Residu / R45</div>
-                  <div className="text-[10px] text-slate-400 font-normal font-mono">(%)</div>
+                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right">
+                  R45
                 </th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-300 w-28 text-right bg-blue-50/40">
-                  <div>H2O / Moisture</div>
-                  <div className="text-[10px] text-[#0284C7] font-semibold font-mono">Tiap 2 Jam (%)</div>
+                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right">
+                  H2O
                 </th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-300 w-28 text-right bg-sky-50/40">
-                  <div>SO3 (XRF)</div>
-                  <div className="text-[10px] text-[#0284C7] font-semibold font-mono">Tiap 4 Jam (%)</div>
+                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right">
+                  SO3
                 </th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-300 w-28 text-right bg-amber-50/30">
-                  <div>Freelime F-CaO</div>
-                  <div className="text-[10px] text-amber-700 font-semibold font-mono">Tiap 8 Jam (%)</div>
+                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right">
+                  F-CaO
                 </th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-300 min-w-44 text-left bg-slate-50/50">
-                  Proporsi Aktif
+                {/* TPH / FEEDING CCR column (Poin 4) */}
+                <th className="py-2.5 px-3 border-r border-slate-500 w-28 text-right bg-slate-700 text-amber-300">
+                  TPH / FEEDING
                 </th>
-                <th className="py-2.5 px-3 border-r border-b border-slate-300 w-36 text-left bg-slate-50/50">
-                  Admixture
+                <th className="py-2.5 px-3 border-r border-slate-500 min-w-44 text-left">
+                  PROPORSI AKTIF
                 </th>
-                <th className="py-2.5 px-3 border-b border-slate-300 min-w-40 text-left">
-                  Catatan
+                <th className="py-2.5 px-3 border-r border-slate-500 w-36 text-left">
+                  ADMIXTURE
+                </th>
+                <th className="py-2.5 px-3 min-w-36 text-left">
+                  CATATAN
                 </th>
               </tr>
             </thead>
-            <tbody className="font-mono">
+            <tbody className="font-mono divide-y divide-slate-300">
               {activeMillData.hourlyRows.map((row, idx) => {
-                const isTwoHour = idx % 2 === 0;
-                const isFourHour = idx % 4 === 0;
-                const isEightHour = idx === 0 || idx === 8;
-
                 return (
                   <tr 
                     key={row.hour}
-                    className="hover:bg-amber-50/30 transition-colors"
+                    className="hover:bg-amber-50/50 transition-colors"
                   >
                     {/* Sticky Hour Cell */}
-                    <td className="py-1 px-2 border-r border-b border-slate-300 text-center font-bold text-slate-900 bg-slate-50 sticky left-0 z-10 shadow-[1px_0_0_0_#cbd5e1]">
+                    <td className="py-1 px-2 border-r border-slate-300 text-center font-bold text-slate-900 bg-slate-100 sticky left-0 z-10 shadow-[1px_0_0_0_#94a3b8]">
                       {row.hour}
                     </td>
 
                     {/* Blaine */}
-                    <td className="p-0 border-r border-b border-slate-300">
+                    <td className="p-0 border-r border-slate-300 bg-red-50/15">
                       <input
                         type="number"
                         inputMode="decimal"
@@ -291,7 +289,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                     </td>
 
                     {/* Residu R45 */}
-                    <td className="p-0 border-r border-b border-slate-300">
+                    <td className="p-0 border-r border-slate-300 bg-red-50/15">
                       <input
                         type="number"
                         inputMode="decimal"
@@ -308,77 +306,88 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                     </td>
 
                     {/* Moisture H2O */}
-                    <td className={`p-0 border-r border-b border-slate-300 ${isTwoHour ? 'bg-blue-50/20' : 'bg-slate-50/20'}`}>
+                    <td className="p-0 border-r border-slate-300 bg-blue-50/15">
                       <input
                         type="number"
                         inputMode="decimal"
                         step="0.01"
-                        placeholder={isTwoHour ? '%' : '-'}
+                        placeholder="%"
                         data-row={idx}
                         data-col="moistureH2O"
                         data-mill={activeMillTab}
                         value={row.moistureH2O !== null && row.moistureH2O !== undefined ? row.moistureH2O : ''}
                         onChange={(e) => handleCellChange(idx, 'moistureH2O', e.target.value)}
                         onKeyDown={(e) => handleKeyDown(e, idx, 'moistureH2O')}
-                        className={`w-full px-2 py-2 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white ${
-                          isTwoHour ? 'font-bold' : 'text-slate-500'
-                        }`}
+                        className="w-full px-2 py-2 text-right font-mono font-semibold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
                       />
                     </td>
 
                     {/* SO3 */}
-                    <td className={`p-0 border-r border-b border-slate-300 ${isFourHour ? 'bg-sky-50/25' : 'bg-slate-50/20'}`}>
+                    <td className="p-0 border-r border-slate-300 bg-sky-50/20">
                       <input
                         type="number"
                         inputMode="decimal"
                         step="0.01"
-                        placeholder={isFourHour ? '%' : '-'}
+                        placeholder="%"
                         data-row={idx}
                         data-col="so3"
                         data-mill={activeMillTab}
                         value={row.so3 !== null && row.so3 !== undefined ? row.so3 : ''}
                         onChange={(e) => handleCellChange(idx, 'so3', e.target.value)}
                         onKeyDown={(e) => handleKeyDown(e, idx, 'so3')}
-                        className={`w-full px-2 py-2 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white ${
-                          isFourHour ? 'font-bold text-[#0284C7]' : 'text-slate-500'
-                        }`}
+                        className="w-full px-2 py-2 text-right font-mono font-bold text-[#0284C7] bg-transparent border-0 excel-cell-input focus:bg-white"
                       />
                     </td>
 
                     {/* Freelime F-CaO */}
-                    <td className={`p-0 border-r border-b border-slate-300 ${isEightHour ? 'bg-amber-50/20' : 'bg-slate-50/20'}`}>
+                    <td className="p-0 border-r border-slate-300 bg-amber-50/15">
                       <input
                         type="number"
                         inputMode="decimal"
                         step="0.01"
-                        placeholder={isEightHour ? '%' : '-'}
+                        placeholder="%"
                         data-row={idx}
                         data-col="freelimeFCaO"
                         data-mill={activeMillTab}
                         value={row.freelimeFCaO !== null && row.freelimeFCaO !== undefined ? row.freelimeFCaO : ''}
                         onChange={(e) => handleCellChange(idx, 'freelimeFCaO', e.target.value)}
                         onKeyDown={(e) => handleKeyDown(e, idx, 'freelimeFCaO')}
-                        className={`w-full px-2 py-2 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white ${
-                          isEightHour ? 'font-bold text-amber-900' : 'text-slate-500'
-                        }`}
+                        className="w-full px-2 py-2 text-right font-mono font-bold text-amber-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                      />
+                    </td>
+
+                    {/* TPH / FEEDING Input (Poin 4) */}
+                    <td className="p-0 border-r border-slate-300 bg-amber-50/20">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        placeholder="t/h"
+                        data-row={idx}
+                        data-col="tph"
+                        data-mill={activeMillTab}
+                        value={row.tph !== null && row.tph !== undefined ? row.tph : ''}
+                        onChange={(e) => handleCellChange(idx, 'tph', e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, idx, 'tph')}
+                        className="w-full px-2 py-2 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
                       />
                     </td>
 
                     {/* Proporsi Aktif Display */}
-                    <td className="py-2 px-3 border-r border-b border-slate-300 text-slate-700 text-[11px] truncate max-w-xs">
-                      {row.proporsiDisplay || `${activeMillData.proporsiHistory[0]?.materials.clinker.wet}% Clk | ...`}
+                    <td className="py-2 px-3 border-r border-slate-300 text-slate-700 text-[11px] truncate max-w-xs">
+                      {row.proporsiDisplay || `${activeMillData.proporsiHistory[0]?.materials.clinker.dry}% Clk | ...`}
                     </td>
 
                     {/* Admixture Display */}
-                    <td className="py-2 px-3 border-r border-b border-slate-300 text-slate-700 text-[11px] truncate">
+                    <td className="py-2 px-3 border-r border-slate-300 text-slate-700 text-[11px] truncate">
                       {row.admixtureDisplay || `${activeMillData.admixtureName} ${activeMillData.admixturePpm} PPM`}
                     </td>
 
                     {/* Notes */}
-                    <td className="p-0 border-b border-slate-300 font-sans">
+                    <td className="p-0 font-sans">
                       <input
                         type="text"
-                        placeholder="Keterangan..."
+                        placeholder="Catatan..."
                         value={row.notes || ''}
                         onChange={(e) => handleCellChange(idx, 'notes', e.target.value)}
                         className="w-full px-2.5 py-2 text-slate-800 bg-transparent border-0 excel-cell-input focus:bg-white text-xs"
@@ -396,7 +405,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
         {/* Clinker WF */}
-        <div className="bg-white border-1.5 border-slate-300 rounded-xl p-3.5 shadow-xs">
+        <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-300">
             <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               ⚖️ B. Clinker WF
@@ -414,7 +423,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                 placeholder="%"
                 value={session.clinkerWf.c3s !== null ? session.clinkerWf.c3s : ''}
                 onChange={(e) => handleClinkerWfChange('c3s', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
               />
             </div>
             <div>
@@ -426,7 +435,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                 placeholder="%"
                 value={session.clinkerWf.fcao !== null ? session.clinkerWf.fcao : ''}
                 onChange={(e) => handleClinkerWfChange('fcao', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
               />
             </div>
             <div>
@@ -438,7 +447,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                 placeholder="%"
                 value={session.clinkerWf.c3a !== null ? session.clinkerWf.c3a : ''}
                 onChange={(e) => handleClinkerWfChange('c3a', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
               />
             </div>
             <div>
@@ -450,14 +459,14 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                 placeholder="%"
                 value={session.clinkerWf.h2o !== null ? session.clinkerWf.h2o : ''}
                 onChange={(e) => handleClinkerWfChange('h2o', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
               />
             </div>
           </div>
         </div>
 
         {/* Moisture Raw Material WF */}
-        <div className="bg-white border-1.5 border-slate-300 rounded-xl p-3.5 shadow-xs">
+        <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-300">
             <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               💧 C. Moisture Raw Material WF
@@ -475,7 +484,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                 placeholder="%"
                 value={session.moistureWf.gypsum !== null ? session.moistureWf.gypsum : ''}
                 onChange={(e) => handleMoistureWfChange('gypsum', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
               />
             </div>
             <div>
@@ -487,7 +496,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                 placeholder="%"
                 value={session.moistureWf.limestone !== null ? session.moistureWf.limestone : ''}
                 onChange={(e) => handleMoistureWfChange('limestone', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
               />
             </div>
             <div>
@@ -499,7 +508,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                 placeholder="%"
                 value={session.moistureWf.trass !== null ? session.moistureWf.trass : ''}
                 onChange={(e) => handleMoistureWfChange('trass', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
               />
             </div>
             <div>
@@ -511,14 +520,14 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                 placeholder="%"
                 value={session.moistureWf.bbKonsumsi !== null ? session.moistureWf.bbKonsumsi : ''}
                 onChange={(e) => handleMoistureWfChange('bbKonsumsi', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
               />
             </div>
           </div>
         </div>
 
-        {/* CP Shift Silo */}
-        <div className="bg-white border-1.5 border-slate-300 rounded-xl p-3.5 shadow-xs">
+        {/* CP Shift Silo (Poin 4: Dropdown Silo 1-6 & 4+6) */}
+        <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-300">
             <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               📦 D. CP Shift ({session.shiftName})
@@ -527,14 +536,16 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
 
           <div className="space-y-2 text-xs">
             <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">Nama Silo</label>
-              <input
-                type="text"
+              <label className="block text-slate-600 mb-0.5 text-[11px]">Pilihan Silo</label>
+              <select
                 value={session.cpShiftSilo.siloName}
                 onChange={(e) => handleCpShiftChange('siloName', e.target.value)}
-                placeholder="Contoh: FLEXIPLUS SILO 4+6"
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono text-xs focus:bg-white focus:outline-none"
-              />
+                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono text-xs font-bold focus:bg-white focus:outline-none"
+              >
+                {DEFAULT_SILO_OPTIONS.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -546,7 +557,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                   placeholder="Blaine"
                   value={session.cpShiftSilo.blaine !== null ? session.cpShiftSilo.blaine : ''}
                   onChange={(e) => handleCpShiftChange('blaine', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
                 />
               </div>
               <div>
@@ -558,7 +569,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                   placeholder="R45"
                   value={session.cpShiftSilo.r45 !== null ? session.cpShiftSilo.r45 : ''}
                   onChange={(e) => handleCpShiftChange('r45', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
@@ -572,7 +583,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                   placeholder="H2O"
                   value={session.cpShiftSilo.h2o !== null ? session.cpShiftSilo.h2o : ''}
                   onChange={(e) => handleCpShiftChange('h2o', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
                 />
               </div>
               <div>
@@ -584,7 +595,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                   placeholder="SO3"
                   value={session.cpShiftSilo.so3 !== null ? session.cpShiftSilo.so3 : ''}
                   onChange={(e) => handleCpShiftChange('so3', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded font-mono font-semibold focus:bg-white focus:outline-none"
+                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
