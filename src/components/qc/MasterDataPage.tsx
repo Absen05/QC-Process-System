@@ -79,18 +79,18 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     <div className="space-y-6">
 
       {/* Top Banner */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-300 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Akses Supervisor / QC Leader (Admin)</span>
             </span>
           </div>
-          <h2 className="text-lg font-bold text-gray-900 mt-1">
+          <h2 className="text-lg font-bold text-slate-900 mt-1">
             Pengaturan Master Data: Standar Target Dry Proporsi
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-slate-500">
             Nilai yang ditetapkan di sini akan menjadi acuan baku default saat analis membuka sesi shift atau mengganti produk.
           </p>
         </div>
@@ -98,7 +98,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportJson}
-            className="px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 flex items-center gap-1.5 shadow-2xs"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Ekspor JSON</span>
@@ -124,7 +124,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       </div>
 
       {/* Mill Selection Tabs */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-4">
+      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-5 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-gray-200 pb-3">
           <div className="flex items-center gap-2">
             <button

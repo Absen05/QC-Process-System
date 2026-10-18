@@ -69,6 +69,9 @@ Gunakan gaya bahasa praktisi QC semen yang lugas, faktual, dan solutif tanpa bas
 
 // Setup Vite middlewares in development or static serve in production
 async function startServer() {
+  // Serve public static assets (such as logo)
+  app.use(express.static(path.resolve(__dirname, 'public')));
+
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {

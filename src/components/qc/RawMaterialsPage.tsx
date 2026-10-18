@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShiftSession, UnifiedIncomingMaterial, IncomingParamKey } from '../../types/qc';
-import { Plus, Trash2, Check, Truck, X } from 'lucide-react';
+import { Plus, Trash2, Truck, X } from 'lucide-react';
 
 interface RawMaterialsPageProps {
   session: ShiftSession;
@@ -106,14 +106,14 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
     <div className="space-y-4">
 
       {/* Top Header */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Truck className="w-5 h-5 text-[#E31E24]" />
-          <h2 className="text-sm sm:text-base font-bold text-gray-900">
+          <h2 className="text-sm sm:text-base font-bold text-slate-900">
             INCOMING RAW MATERIAL
           </h2>
-          <span className="text-gray-300">·</span>
-          <span className="text-xs text-gray-500 font-mono">
+          <span className="text-slate-300">·</span>
+          <span className="text-xs text-slate-500 font-mono">
             {session.incomingMaterials.length} Material Terdaftar
           </span>
         </div>
@@ -136,17 +136,17 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
           return (
             <div 
               key={mat.id}
-              className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-2xs hover:border-gray-300 transition-colors flex flex-col justify-between space-y-2.5"
+              className="bg-white border-1.5 border-slate-300 rounded-xl p-3.5 shadow-2xs hover:border-slate-400 transition-colors flex flex-col justify-between space-y-2.5"
             >
               {/* Card Title */}
-              <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
-                <span className="text-xs font-bold text-gray-900 font-mono">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                <span className="text-xs font-bold text-slate-900 font-mono">
                   {mat.name}
                 </span>
                 {mat.isCustom && (
                   <button
                     onClick={() => handleDelete(mat.id)}
-                    className="text-gray-400 hover:text-red-600 p-0.5"
+                    className="text-slate-400 hover:text-red-600 p-0.5 rounded"
                     title="Hapus material ini"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -167,7 +167,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                         placeholder="Nilai (%)"
                         value={mat.params.valuePercent !== null && mat.params.valuePercent !== undefined ? mat.params.valuePercent : ''}
                         onChange={(e) => handleParamChange(mat.id, 'valuePercent', e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs font-mono font-bold bg-gray-50 border border-gray-300 rounded focus:bg-white focus:outline-none"
+                        className="w-full px-2.5 py-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
                       />
                     </div>
                     {mat.enabledParams.includes('statusText') && (
@@ -177,7 +177,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                           placeholder="Status (on process)"
                           value={mat.params.statusText || ''}
                           onChange={(e) => handleParamChange(mat.id, 'statusText', e.target.value)}
-                          className="w-full px-2 py-1.5 text-xs bg-gray-50 border border-gray-300 rounded focus:bg-white focus:outline-none"
+                          className="w-full px-2 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
                         />
                       </div>
                     )}
@@ -192,13 +192,13 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                       if (paramKey === 'statusText') {
                         return (
                           <div key={paramKey} className="col-span-2">
-                            <label className="block text-gray-500 text-[10px] uppercase font-bold mb-0.5">Status</label>
+                            <label className="block text-slate-500 text-[10px] uppercase font-bold mb-0.5">Status</label>
                             <input
                               type="text"
                               value={mat.params.statusText || ''}
                               onChange={(e) => handleParamChange(mat.id, 'statusText', e.target.value)}
                               placeholder="on process"
-                              className="w-full px-2 py-1 bg-gray-50 border border-gray-300 rounded text-xs focus:bg-white focus:outline-none"
+                              className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
                             />
                           </div>
                         );
@@ -206,7 +206,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
 
                       return (
                         <div key={paramKey}>
-                          <label className="block text-gray-600 text-[11px] font-medium mb-0.5">
+                          <label className="block text-slate-600 text-[11px] font-medium mb-0.5">
                             {def.label} ({def.unit})
                           </label>
                           <input
@@ -216,7 +216,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                             placeholder={def.unit}
                             value={mat.params[paramKey] !== null && mat.params[paramKey] !== undefined ? mat.params[paramKey] : ''}
                             onChange={(e) => handleParamChange(mat.id, paramKey, e.target.value)}
-                            className="w-full px-2 py-1 bg-gray-50 border border-gray-300 rounded font-mono font-bold text-xs focus:bg-white focus:outline-none"
+                            className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-400"
                           />
                         </div>
                       );
@@ -233,20 +233,20 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
       {/* Modal: + Tambah Incoming Baru (Checklist Parameter) */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl border-1.5 border-slate-300 overflow-hidden">
             
-            <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-gray-900">
+            <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">
                 + Tambah Incoming Raw Material Baru
               </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveNewIncoming} className="p-5 space-y-4 text-xs">
               <div>
-                <label className="block text-gray-800 font-bold mb-1">
+                <label className="block text-slate-800 font-bold mb-1">
                   Nama Material (Contoh: Incoming FA PT A atau Incoming Pozzolan)
                 </label>
                 <input
@@ -255,15 +255,15 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                   placeholder="Ketik nama material..."
                   value={newMaterialName}
                   onChange={(e) => setNewMaterialName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E31E24]/30"
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E31E24]/30"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-800 font-bold mb-2">
+                <label className="block text-slate-800 font-bold mb-2">
                   Daftar Pilihan Parameter Analisa Laboratorium (Centang yang dibutuhkan):
                 </label>
-                <div className="grid grid-cols-2 gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200 max-h-56 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-300 max-h-56 overflow-y-auto">
                   {PARAMETER_CHECKLIST.map((param) => (
                     <label
                       key={param.key}
@@ -273,9 +273,9 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                         type="checkbox"
                         checked={selectedParams.includes(param.key)}
                         onChange={() => handleToggleParam(param.key)}
-                        className="w-4 h-4 text-[#E31E24] rounded border-gray-300 focus:ring-[#E31E24]"
+                        className="w-4 h-4 text-[#E31E24] rounded border-slate-300 focus:ring-[#E31E24]"
                       />
-                      <span className="font-medium text-gray-800">
+                      <span className="font-medium text-slate-800">
                         {param.label}
                       </span>
                     </label>
@@ -283,17 +283,17 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-gray-200 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3.5 py-1.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold"
+                  className="px-3.5 py-1.5 text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 font-semibold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-xs"
+                  className="px-4 py-1.5 font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-xs transition-colors"
                 >
                   Simpan Incoming
                 </button>

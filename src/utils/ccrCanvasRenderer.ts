@@ -23,14 +23,37 @@ export interface CcrRenderData {
   wetTotal: number;
 }
 
+function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+}
+
 /**
- * High-performance, 100% reliable HTML5 Canvas renderer for CCR Proportion Instructions.
- * Completely immune to html2canvas "oklch" CSS parsing errors and CORS taint.
+ * High-performance, pixel-perfect HTML5 Canvas renderer for CCR Feeder Setpoint.
+ * 100% compliant with Plant Reference structure:
+ * - Outer soft gray background (#F3F4F6)
+ * - Bagian 1: Card Header (White, Logo left, QC CIWANDAN / Title / Date real-time right)
+ * - Bagian 2: Card Utama "HASIL SETPOINT FEEDER" (5 Kolom: MATERIAL, %DRY, MOIST, W BASAH, %WET badge, 2 Kotak Summary)
+ * - Bagian 3: Footer luar "Quality Control Plant Ciwandan • PT Cemindo Gemilang"
  */
 export async function renderCcrImage(data: CcrRenderData): Promise<string> {
-  const scale = 2; // High DPI for retina / WhatsApp zoom
+  const scale = 2; // 2x Retina resolution
   const width = 640;
-  const height = 660;
+  const height = 560;
 
   const canvas = document.createElement('canvas');
   canvas.width = width * scale;
@@ -41,29 +64,37 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
 
   ctx.scale(scale, scale);
 
-  // Background
-  ctx.fillStyle = '#FFFFFF';
+  // 1. Latar Luar Canvas Gambar: Abu-abu lembut (#F3F4F6)
+  ctx.fillStyle = '#F3F4F6';
   ctx.fillRect(0, 0, width, height);
 
-  // Outer border
-  ctx.strokeStyle = '#D1D5DB';
+  const pad = 20;
+  const cardW = width - pad * 2;
+
+  // ==========================================
+  // BAGIAN 1: Card Header (Kotak Atas)
+  // ==========================================
+  const headerCardY = pad;
+  const headerCardH = 80;
+
+  // Header Card Box
+  drawRoundedRect(ctx, pad, headerCardY, cardW, headerCardH, 12);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+  ctx.strokeStyle = '#CBD5E1';
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(1, 1, width - 2, height - 2);
+  ctx.stroke();
 
-  // Red top accent bar
-  ctx.fillStyle = '#E31E24';
-  ctx.fillRect(0, 0, width, 5);
-
-  // Try to load logo or draw fallback
+  // Logo Semen Merah Putih (Sisi Kiri)
   let logoDrawn = false;
   try {
     const logoImg = new Image();
-    logoImg.crossOrigin = 'anonymous';
-    logoImg.src = 'https://cms.semenmerahputih.com/storage/5187/responsive-images/Logo_Semen_Merah_Putih-1___converted_1684_489.webp';
+    // Try local public logo first (same origin, never taints canvas)
+    logoImg.src = '/logo_semen_merah_putih.webp';
     await new Promise((resolve) => {
       logoImg.onload = () => {
         try {
-          ctx.drawImage(logoImg, 24, 20, 140, 40);
+          ctx.drawImage(logoImg, pad + 16, headerCardY + 16, 148, 48);
           logoDrawn = true;
         } catch {
           logoDrawn = false;
@@ -71,236 +102,314 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
         resolve(true);
       };
       logoImg.onerror = () => resolve(false);
-      setTimeout(() => resolve(false), 800); // 800ms timeout
+      setTimeout(() => resolve(false), 500);
     });
   } catch {
     logoDrawn = false;
   }
 
   if (!logoDrawn) {
-    // Stylized Semen Merah Putih typographic logo
+    // Stylized typographic brand logo fallback
     ctx.fillStyle = '#E31E24';
-    ctx.fillRect(24, 22, 10, 32);
+    ctx.fillRect(pad + 18, headerCardY + 20, 10, 40);
     ctx.fillStyle = '#111827';
-    ctx.fillRect(36, 22, 10, 32);
+    ctx.fillRect(pad + 32, headerCardY + 20, 10, 40);
 
     ctx.fillStyle = '#E31E24';
-    ctx.font = 'bold 16px "Plus Jakarta Sans", system-ui, sans-serif';
-    ctx.fillText('SEMEN', 54, 36);
+    ctx.font = 'bold 15px "Plus Jakarta Sans", system-ui, sans-serif';
+    ctx.fillText('SEMEN', pad + 50, headerCardY + 38);
     ctx.fillStyle = '#111827';
-    ctx.fillText('MERAH PUTIH', 54, 52);
+    ctx.fillText('MERAH PUTIH', pad + 50, headerCardY + 54);
   }
 
-  // Header Title on Right
+  // Sisi Kanan (Teks Berjenjang)
   ctx.textAlign = 'right';
+
+  // 1. Teks kecil merah kapital tebal: QC CIWANDAN
   ctx.fillStyle = '#E31E24';
+  ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
+  ctx.fillText('QC CIWANDAN', pad + cardW - 18, headerCardY + 25);
+
+  // 2. Judul utama hitam tebal: Proporsi [Nama Produk] - [TM / VRM]
+  ctx.fillStyle = '#111827';
   ctx.font = 'bold 15px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText(`SETTING PROPORSI CCR - ${data.millCode}`, width - 24, 34);
+  ctx.fillText(`Proporsi ${data.productType} - ${data.millCode}`, pad + cardW - 18, headerCardY + 45);
 
-  ctx.fillStyle = '#6B7280';
+  // 3. Sub-teks abu-abu: [DD Bulan YYYY, HH:mm] WIB (Format waktu Indonesia, real-time saat gambar digenerate)
+  const now = new Date();
+  const dateStr = formatIndonesianDate(data.date);
+  const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+  ctx.fillStyle = '#64748B';
   ctx.font = '500 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText('Grinding Plant Ciwandan · PT Cemindo Gemilang Tbk', width - 24, 50);
+  ctx.fillText(`${dateStr}, ${timeStr} WIB`, pad + cardW - 18, headerCardY + 63);
 
-  // Divider line
-  ctx.strokeStyle = '#E5E7EB';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(24, 72);
-  ctx.lineTo(width - 24, 72);
+  // ==========================================
+  // BAGIAN 2: Card Utama "HASIL SETPOINT FEEDER"
+  // ==========================================
+  const mainCardY = headerCardY + headerCardH + 12;
+  const mainCardH = 405;
+
+  drawRoundedRect(ctx, pad, mainCardY, cardW, mainCardH, 12);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Info Box (Background)
-  ctx.fillStyle = '#F9FAFB';
-  ctx.fillRect(24, 84, width - 48, 54);
-  ctx.strokeStyle = '#E5E7EB';
-  ctx.strokeRect(24, 84, width - 48, 54);
-
-  // Info Box Content
+  // Header Card Utama: Kiri Atas
   ctx.textAlign = 'left';
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 14px "Plus Jakarta Sans", system-ui, sans-serif';
+  ctx.fillText('HASIL SETPOINT FEEDER', pad + 18, mainCardY + 28);
+
+  ctx.fillStyle = '#64748B';
   ctx.font = '400 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillStyle = '#6B7280';
-  ctx.fillText('Tanggal:', 36, 104);
-  ctx.fillStyle = '#111827';
-  ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText(formatIndonesianDate(data.date), 88, 104);
+  ctx.fillText('Input manual nilai %Wet ke feeder CCR', pad + 18, mainCardY + 44);
 
-  ctx.font = '400 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillStyle = '#6B7280';
-  ctx.fillText('Shift:', 36, 124);
-  ctx.fillStyle = '#111827';
-  ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText(`${data.shiftName} (${data.appliedHour} WIB)`, 88, 124);
+  // Header Card Utama: Kanan Atas Badge "WET BASE"
+  const badgeW = 86;
+  const badgeH = 24;
+  const badgeX = pad + cardW - 18 - badgeW;
+  const badgeY = mainCardY + 18;
 
-  ctx.font = '400 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillStyle = '#6B7280';
-  ctx.fillText('Unit Mill:', 320, 104);
-  ctx.fillStyle = '#111827';
-  ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText(`${data.millCode} (${data.millType})`, 380, 104);
-
-  ctx.font = '400 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillStyle = '#6B7280';
-  ctx.fillText('Produk:', 320, 124);
-  ctx.fillStyle = '#0284C7';
-  ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText(`${data.productType} (${data.siloName})`, 380, 124);
-
-  // Table Setup
-  const tableX = 24;
-  const tableY = 152;
-  const tableW = width - 48;
-  const colW = [140, 120, 132, tableW - (140 + 120 + 132)]; // 4 columns
-  const rowH = 34;
-
-  // Table Header Backgrounds
-  ctx.fillStyle = '#F3F4F6';
-  ctx.fillRect(tableX, tableY, tableW, rowH);
-
-  // Tint for Set Wet column header
-  ctx.fillStyle = '#DCFCE7';
-  ctx.fillRect(tableX + colW[0] + colW[1] + colW[2], tableY, colW[3], rowH);
-
-  // Table Outer & Header Grid
-  ctx.strokeStyle = '#D1D5DB';
+  drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 6);
+  ctx.fillStyle = '#FEF2F2'; // bg-red-50
+  ctx.fill();
+  ctx.strokeStyle = '#FECACA';
   ctx.lineWidth = 1;
-  ctx.strokeRect(tableX, tableY, tableW, rowH * 7);
+  ctx.stroke();
 
-  // Header Text
-  ctx.fillStyle = '#374151';
+  ctx.fillStyle = '#E31E24';
   ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('Raw Material', tableX + 12, tableY + 21);
+  ctx.textAlign = 'center';
+  ctx.fillText('WET BASE', badgeX + badgeW / 2, badgeY + 16);
 
-  ctx.textAlign = 'right';
-  ctx.fillText('Target Dry (%)', tableX + colW[0] + colW[1] - 12, tableY + 21);
-  ctx.fillText('Moisture H2O (%)', tableX + colW[0] + colW[1] + colW[2] - 12, tableY + 21);
+  // ==========================================
+  // Tabel Kalkulasi Proporsi (5 Kolom)
+  // MATERIAL | %DRY | MOIST | W BASAH | %WET
+  // ==========================================
+  const tableX = pad + 18;
+  const tableY = mainCardY + 58;
+  const tableW = cardW - 36;
+  const colW = [124, 100, 100, 120, tableW - (124 + 100 + 100 + 120)];
+  const rowH = 32;
 
-  ctx.fillStyle = '#15803D';
-  ctx.fillText('SET WET (%)', tableX + tableW - 12, tableY + 21);
-
-  // Table Rows Data
-  const rows = [
-    { name: 'Clinker', dry: data.materials.clinker.dry, h2o: data.materials.clinker.h2o, wet: data.materials.clinker.wet },
-    { name: 'Gypsum', dry: data.materials.gypsum.dry, h2o: data.materials.gypsum.h2o, wet: data.materials.gypsum.wet },
-    { name: 'Limestone', dry: data.materials.limestone.dry, h2o: data.materials.limestone.h2o, wet: data.materials.limestone.wet },
-    { name: 'Trass', dry: data.materials.trass.dry, h2o: data.materials.trass.h2o, wet: data.materials.trass.wet },
-    { name: 'Fly Ash', dry: data.materials.flyAsh.dry, h2o: data.materials.flyAsh.h2o, wet: data.materials.flyAsh.wet },
+  // Active Material Items
+  const activeItems: { name: string; dry: number; h2o: number; wBasah: number; wet: number }[] = [];
+  const rawList = [
+    { name: 'CLINKER', item: data.materials.clinker },
+    { name: 'GYPSUM', item: data.materials.gypsum },
+    { name: 'LIMESTONE', item: data.materials.limestone },
+    { name: 'TRASS', item: data.materials.trass },
+    { name: 'FLY ASH', item: data.materials.flyAsh },
   ];
 
-  rows.forEach((r, idx) => {
+  let sumWBasah = 0;
+  rawList.forEach(r => {
+    const dry = r.item.dry;
+    const h2o = r.item.h2o;
+    const wBasah = dry > 0 ? (dry / (1 - (h2o / 100))) : 0;
+    sumWBasah += wBasah;
+
+    activeItems.push({
+      name: r.name,
+      dry: r.item.dry,
+      h2o: r.item.h2o,
+      wBasah: Number(wBasah.toFixed(2)),
+      wet: r.item.wet,
+    });
+  });
+
+  const totalWBasahFormatted = sumWBasah.toFixed(2);
+  const airMenguap = Math.max(0, sumWBasah - 100.0).toFixed(2);
+
+  // Table Outer Frame
+  const totalRowsCount = activeItems.length + 2; // header + 5 rows + total
+  drawRoundedRect(ctx, tableX, tableY, tableW, rowH * totalRowsCount, 8);
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Table Header Background (#F3F4F6)
+  ctx.save();
+  ctx.clip(); // clip to table rounded rect
+  ctx.fillStyle = '#F1F5F9';
+  ctx.fillRect(tableX, tableY, tableW, rowH);
+
+  // Table Header Labels
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('MATERIAL', tableX + 12, tableY + 20);
+
+  ctx.textAlign = 'right';
+  ctx.fillText('%DRY', tableX + colW[0] + colW[1] - 12, tableY + 20);
+  ctx.fillText('MOIST', tableX + colW[0] + colW[1] + colW[2] - 12, tableY + 20);
+  ctx.fillText('W BASAH', tableX + colW[0] + colW[1] + colW[2] + colW[3] - 12, tableY + 20);
+  ctx.fillText('%WET', tableX + tableW - 16, tableY + 20);
+
+  // Table Rows (Dividers)
+  activeItems.forEach((item, idx) => {
     const curY = tableY + rowH * (idx + 1);
 
     // Row divider
-    ctx.strokeStyle = '#E5E7EB';
+    ctx.strokeStyle = '#E2E8F0';
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(tableX, curY);
     ctx.lineTo(tableX + tableW, curY);
     ctx.stroke();
 
-    // Set Wet Column highlight background
-    ctx.fillStyle = '#F0FDF4';
-    ctx.fillRect(tableX + colW[0] + colW[1] + colW[2], curY, colW[3], rowH);
-
-    // Material Name
+    // Material Name (Column 1)
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#111827';
+    ctx.fillStyle = '#0F172A';
     ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-    ctx.fillText(r.name, tableX + 12, curY + 21);
+    ctx.fillText(item.name, tableX + 12, curY + 20);
 
-    // Dry %
+    // %DRY (Column 2)
     ctx.textAlign = 'right';
-    ctx.font = '500 11px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#374151';
-    ctx.fillText(`${r.dry.toFixed(1)}%`, tableX + colW[0] + colW[1] - 12, curY + 21);
+    ctx.font = '600 11px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#334155';
+    ctx.fillText(`${item.dry.toFixed(1)}%`, tableX + colW[0] + colW[1] - 12, curY + 20);
 
-    // H2O %
-    ctx.fillText(`${r.h2o.toFixed(2)}%`, tableX + colW[0] + colW[1] + colW[2] - 12, curY + 21);
+    // MOIST (Column 3)
+    ctx.fillText(`${item.h2o.toFixed(2)}%`, tableX + colW[0] + colW[1] + colW[2] - 12, curY + 20);
 
-    // Wet %
+    // W BASAH (Column 4)
+    ctx.fillStyle = '#0F172A';
+    ctx.fillText(`${item.wBasah.toFixed(2)}`, tableX + colW[0] + colW[1] + colW[2] + colW[3] - 12, curY + 20);
+
+    // %WET Badge (Column 5 - Pink Badge bg-red-50 text-red #E31E24)
+    const wetBadgeW = 74;
+    const wetBadgeH = 22;
+    const wetBadgeX = tableX + tableW - wetBadgeW - 8;
+    const wetBadgeY = curY + 5;
+
+    drawRoundedRect(ctx, wetBadgeX, wetBadgeY, wetBadgeW, wetBadgeH, 4);
+    ctx.fillStyle = '#FEF2F2';
+    ctx.fill();
+    ctx.strokeStyle = '#FECACA';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#E31E24';
     ctx.font = 'bold 12px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#111827';
-    ctx.fillText(`${r.wet.toFixed(1)}%`, tableX + tableW - 12, curY + 21);
+    ctx.fillText(`${item.wet.toFixed(1)}%`, wetBadgeX + wetBadgeW / 2, wetBadgeY + 15);
   });
 
-  // Total Row
-  const totalY = tableY + rowH * 6;
-  ctx.fillStyle = '#F3F4F6';
+  // Baris TOTAL
+  const totalY = tableY + rowH * (activeItems.length + 1);
+
+  // Background for total row (#F8FAFC)
+  ctx.fillStyle = '#F8FAFC';
   ctx.fillRect(tableX, totalY, tableW, rowH);
 
-  // Total Set Wet Column Badge
-  ctx.fillStyle = '#DCFCE7';
-  ctx.fillRect(tableX + colW[0] + colW[1] + colW[2], totalY, colW[3], rowH);
-
-  // Top border of total row
-  ctx.strokeStyle = '#D1D5DB';
+  ctx.strokeStyle = '#CBD5E1';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(tableX, totalY);
   ctx.lineTo(tableX + tableW, totalY);
   ctx.stroke();
 
+  // TOTAL: Material
   ctx.textAlign = 'left';
+  ctx.fillStyle = '#0F172A';
   ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillStyle = '#111827';
-  ctx.fillText('TOTAL PROPORSI', tableX + 12, totalY + 21);
+  ctx.fillText('TOTAL', tableX + 12, totalY + 20);
 
+  // TOTAL: %DRY = 100.0%
   ctx.textAlign = 'right';
   ctx.font = 'bold 11px "JetBrains Mono", monospace';
   ctx.fillStyle = '#16A34A';
-  ctx.fillText(`${data.dryTotal.toFixed(1)}%`, tableX + colW[0] + colW[1] - 12, totalY + 21);
+  ctx.fillText('100.0%', tableX + colW[0] + colW[1] - 12, totalY + 20);
 
-  ctx.fillStyle = '#9CA3AF';
-  ctx.fillText('-', tableX + colW[0] + colW[1] + colW[2] - 12, totalY + 21);
+  // TOTAL: MOIST = —
+  ctx.fillStyle = '#94A3B8';
+  ctx.fillText('—', tableX + colW[0] + colW[1] + colW[2] - 12, totalY + 20);
 
-  ctx.fillStyle = '#15803D';
-  ctx.font = 'bold 13px "JetBrains Mono", monospace';
-  ctx.fillText(`${data.wetTotal.toFixed(1)}%`, tableX + tableW - 12, totalY + 21);
+  // TOTAL: W BASAH = [Total W BASAH] t/h
+  ctx.fillStyle = '#0F172A';
+  ctx.fillText(`${totalWBasahFormatted} t/h`, tableX + colW[0] + colW[1] + colW[2] + colW[3] - 12, totalY + 20);
 
-  // Column vertical lines
-  ctx.strokeStyle = '#E5E7EB';
+  // TOTAL: %WET Badge = 100.0%
+  const totalBadgeW = 74;
+  const totalBadgeH = 22;
+  const totalBadgeX = tableX + tableW - totalBadgeW - 8;
+  const totalBadgeY = totalY + 5;
+
+  drawRoundedRect(ctx, totalBadgeX, totalBadgeY, totalBadgeW, totalBadgeH, 4);
+  ctx.fillStyle = '#FEE2E2';
+  ctx.fill();
+  ctx.strokeStyle = '#FCA5A5';
   ctx.lineWidth = 1;
-  const colLines = [
-    tableX + colW[0],
-    tableX + colW[0] + colW[1],
-    tableX + colW[0] + colW[1] + colW[2],
-  ];
-  colLines.forEach(x => {
-    ctx.beginPath();
-    ctx.moveTo(x, tableY);
-    ctx.lineTo(x, tableY + rowH * 7);
-    ctx.stroke();
-  });
+  ctx.stroke();
 
-  // Admixture & Analyst Signature Box
-  const metaBoxY = tableY + rowH * 7 + 16;
-  ctx.fillStyle = '#F9FAFB';
-  ctx.fillRect(tableX, metaBoxY, tableW, 46);
-  ctx.strokeStyle = '#E5E7EB';
-  ctx.strokeRect(tableX, metaBoxY, tableW, 46);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#E31E24';
+  ctx.font = 'bold 12px "JetBrains Mono", monospace';
+  ctx.fillText('100.0%', totalBadgeX + totalBadgeW / 2, totalBadgeY + 15);
+
+  ctx.restore(); // restore clipping
+
+  // ==========================================
+  // 2 Kotak Summary di Bawah Tabel
+  // (Total Massa Basah & Air Menguap)
+  // ==========================================
+  const sumBoxesY = tableY + rowH * totalRowsCount + 12;
+  const sumBoxW = (tableW - 12) / 2;
+  const sumBoxH = 68;
+
+  // Kotak Kiri: Total Massa Basah
+  drawRoundedRect(ctx, tableX, sumBoxesY, sumBoxW, sumBoxH, 10);
+  ctx.fillStyle = '#F8FAFC';
+  ctx.fill();
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
   ctx.textAlign = 'left';
-  ctx.font = '400 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillStyle = '#6B7280';
-  ctx.fillText('Admixture Terpasang:', tableX + 12, metaBoxY + 27);
+  ctx.fillStyle = '#64748B';
+  ctx.font = '500 11px "Plus Jakarta Sans", system-ui, sans-serif';
+  ctx.fillText('Total Massa Basah', tableX + 14, sumBoxesY + 18);
 
-  ctx.fillStyle = '#111827';
-  ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText(`${data.admixtureName} (${data.admixturePpm} PPM)`, tableX + 130, metaBoxY + 27);
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 16px "JetBrains Mono", monospace';
+  ctx.fillText(`${totalWBasahFormatted} ton/jam`, tableX + 14, sumBoxesY + 41);
 
-  ctx.textAlign = 'right';
-  ctx.font = '400 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillStyle = '#6B7280';
-  ctx.fillText('Analis QC:', tableX + tableW - 140, metaBoxY + 27);
-
-  ctx.fillStyle = '#111827';
-  ctx.font = 'bold 11px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText(data.analystName, tableX + tableW - 12, metaBoxY + 27);
-
-  // Footer Note
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#9CA3AF';
+  ctx.fillStyle = '#94A3B8';
   ctx.font = '400 10px "Plus Jakarta Sans", system-ui, sans-serif';
-  ctx.fillText('QC Process Management System · PT Cemindo Gemilang Tbk (Semen Merah Putih)', width / 2, height - 16);
+  ctx.fillText('Feeder mill input', tableX + 14, sumBoxesY + 58);
+
+  // Kotak Kanan: Air Menguap (Mill)
+  const boxRightX = tableX + sumBoxW + 12;
+  drawRoundedRect(ctx, boxRightX, sumBoxesY, sumBoxW, sumBoxH, 10);
+  ctx.fillStyle = '#F8FAFC';
+  ctx.fill();
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#64748B';
+  ctx.font = '500 11px "Plus Jakarta Sans", system-ui, sans-serif';
+  ctx.fillText('Air Menguap (Mill)', boxRightX + 14, sumBoxesY + 18);
+
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 16px "JetBrains Mono", monospace';
+  ctx.fillText(`${airMenguap} ton/jam`, boxRightX + 14, sumBoxesY + 41);
+
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = '400 10px "Plus Jakarta Sans", system-ui, sans-serif';
+  ctx.fillText('Uap air cerobong', boxRightX + 14, sumBoxesY + 58);
+
+  // ==========================================
+  // BAGIAN 3: Footer Gambar
+  // ==========================================
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#94A3B8';
+  ctx.font = '500 10px "Plus Jakarta Sans", system-ui, sans-serif';
+  ctx.fillText('Quality Control Plant Ciwandan • PT Cemindo Gemilang', width / 2, height - 12);
 
   return canvas.toDataURL('image/png');
 }

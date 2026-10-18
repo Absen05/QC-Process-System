@@ -77,15 +77,17 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden my-6">
+      <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl border-1.5 border-slate-300 overflow-hidden my-6">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-red-50 to-white px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-red-50 to-white px-5 py-4 border-b border-slate-300 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img 
-              src="https://cms.semenmerahputih.com/storage/5187/responsive-images/Logo_Semen_Merah_Putih-1___converted_1684_489.webp" 
+              src="/logo_semen_merah_putih.webp" 
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = "https://cms.semenmerahputih.com/storage/5187/responsive-images/Logo_Semen_Merah_Putih-1___converted_1684_489.webp";
+              }}
               alt="Semen Merah Putih" 
-              referrerPolicy="no-referrer"
               className="h-10 w-auto object-contain"
             />
             <div>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShiftSession, 
   MillType, 
@@ -7,11 +7,9 @@ import {
   MasterTargetDryMap,
   MillSessionData
 } from '../../types/qc';
-import { calculateWetBase, formatIndonesianDate } from '../../utils/qcCalculations';
+import { calculateWetBase } from '../../utils/qcCalculations';
 import { renderCcrImage, dataUrlToBlob } from '../../utils/ccrCanvasRenderer';
 import { 
-  CheckCircle, 
-  AlertTriangle, 
   Camera, 
   Save, 
   RotateCcw, 
@@ -21,7 +19,7 @@ import {
   Factory, 
   Check, 
   X,
-  ArrowRight
+  Sliders
 } from 'lucide-react';
 
 interface ProporsiPageProps {
@@ -37,7 +35,6 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   masterTargets,
   initialMill = 'TM',
   onUpdateSession,
-  onSwitchTab,
 }) => {
   // Mill Selection: TM (Mill 1) or VRM (Mill 2)
   const [selectedMillCode, setSelectedMillCode] = useState<'TM' | 'VRM'>(initialMill);
@@ -138,6 +135,30 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     trass: { dry: dryValues.trass, h2o: h2oValues.trass },
     flyAsh: { dry: dryValues.flyAsh, h2o: h2oValues.flyAsh },
   }, bufferMaterial);
+
+  // Calculate W Basah Ton/Jam items for live UI display
+  const materialsList = [
+    { key: 'clinker' as const, label: 'CLINKER', item: calculation.clinker },
+    { key: 'gypsum' as const, label: 'GYPSUM', item: calculation.gypsum },
+    { key: 'limestone' as const, label: 'LIMESTONE', item: calculation.limestone },
+    { key: 'trass' as const, label: 'TRASS', item: calculation.trass, isBuffer: bufferMaterial === 'trass' },
+    { key: 'flyAsh' as const, label: 'FLY ASH', item: calculation.flyAsh },
+  ];
+
+  let sumWBasah = 0;
+  const itemsWithWBasah = materialsList.map(m => {
+    const dry = m.item.dry;
+    const h2o = m.item.h2o;
+    const wBasah = dry > 0 ? (dry / (1 - (h2o / 100))) : 0;
+    sumWBasah += wBasah;
+    return {
+      ...m,
+      wBasah: Number(wBasah.toFixed(2))
+    };
+  });
+
+  const totalWBasahFormatted = sumWBasah.toFixed(2);
+  const airMenguapFormatted = Math.max(0, sumWBasah - 100.0).toFixed(2);
 
   const isOverride = 
     dryValues.clinker !== defaultStandard.clinker ||
@@ -310,19 +331,19 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   return (
     <div className="space-y-4">
 
-      {/* Target Mill & Product Controls */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-xs">
+      {/* Target Mill & Product Controls Bar */}
+      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-3.5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
           {/* Dual-Mill Switcher for Setting Proporsi */}
-          <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-lg shrink-0">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-300 rounded-lg shrink-0">
             <button
               type="button"
               onClick={() => setSelectedMillCode('TM')}
               className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
                 selectedMillCode === 'TM'
-                  ? 'bg-white text-gray-900 shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-300'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-amber-600" />
@@ -333,8 +354,8 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               onClick={() => setSelectedMillCode('VRM')}
               className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
                 selectedMillCode === 'VRM'
-                  ? 'bg-white text-gray-900 shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white text-slate-900 shadow-xs border border-slate-300'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-[#0284C7]" />
@@ -342,12 +363,12 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
             </button>
           </div>
 
-          {/* Product, Silo & Override Status */}
+          {/* Product, Silo, Buffer & Reset */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <select
               value={productType}
               onChange={(e) => handleProductChange(e.target.value as ProductType)}
-              className="px-3 py-1.5 font-bold bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none"
+              className="px-3 py-1.5 font-bold bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400"
             >
               <option value="PCC Plus FA">PCC Plus FA</option>
               <option value="PCC NON FA">PCC NON FA</option>
@@ -362,20 +383,32 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               value={siloName}
               onChange={(e) => setSiloName(e.target.value)}
               placeholder="Silo"
-              className="w-24 px-2.5 py-1.5 font-bold bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none"
+              className="w-24 px-2.5 py-1.5 font-bold bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400"
             />
+
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-300 rounded-lg text-slate-700">
+              <span className="text-[11px] font-medium text-slate-500">Buffer:</span>
+              <select
+                value={bufferMaterial}
+                onChange={(e) => setBufferMaterial(e.target.value as 'trass' | 'clinker')}
+                className="bg-transparent font-bold text-xs focus:outline-none text-slate-900 cursor-pointer"
+              >
+                <option value="trass">Trass</option>
+                <option value="clinker">Clinker</option>
+              </select>
+            </div>
 
             {isOverride ? (
               <button
                 onClick={handleResetToStandard}
-                className="px-2.5 py-1.5 text-[11px] font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg flex items-center gap-1"
+                className="px-2.5 py-1.5 text-[11px] font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg flex items-center gap-1 transition-colors"
                 title="Kembalikan target ke standar supervisor"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Reset Standar</span>
               </button>
             ) : (
-              <span className="text-[11px] text-gray-500 font-medium px-2 py-1 bg-gray-50 rounded border border-gray-200">
+              <span className="text-[11px] text-slate-500 font-medium px-2 py-1 bg-slate-50 rounded border border-slate-200">
                 Standar Master
               </span>
             )}
@@ -384,223 +417,122 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         </div>
       </div>
 
-      {/* Main Calculation Grid */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
+      {/* Main Calculation & Setpoint Feeder Card (100% Mirroring CCR Image Reference) */}
+      <div className="bg-white border-1.5 border-slate-300 rounded-xl shadow-xs overflow-hidden">
         
-        {/* Table Toolbar */}
-        <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between text-xs">
-          <div className="font-bold text-gray-800">
-            Kalkulasi Wet Base {selectedMillCode} · {productType}
+        {/* Card Header (HASIL SETPOINT FEEDER & WET BASE Badge) */}
+        <div className="p-4 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-[#E31E24]" />
+              <span>HASIL SETPOINT FEEDER — {selectedMillCode}</span>
+            </h2>
+            <p className="text-xs text-slate-500 font-normal mt-0.5">
+              Input manual nilai %Wet ke feeder CCR
+            </p>
           </div>
+
           <div className="flex items-center gap-2">
-            <span className="text-gray-500">Buffer:</span>
-            <select
-              value={bufferMaterial}
-              onChange={(e) => setBufferMaterial(e.target.value as 'trass' | 'clinker')}
-              className="px-2 py-0.5 text-xs font-semibold bg-white border border-gray-300 rounded focus:outline-none"
-            >
-              <option value="trass">Trass</option>
-              <option value="clinker">Clinker</option>
-            </select>
+            <span className="px-3 py-1 bg-red-50 border border-red-200 text-[#E31E24] font-bold text-xs rounded-md uppercase tracking-wider">
+              WET BASE
+            </span>
           </div>
         </div>
 
-        {/* Table */}
+        {/* 5-Column Excel-like Calculation Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-mono">
             <thead>
-              <tr className="bg-gray-100/80 text-gray-700 border-b border-gray-200 font-bold select-none">
-                <th className="py-2 px-3 w-36 border-r border-gray-200 font-sans">Material</th>
-                <th className="py-2 px-3 w-32 text-right border-r border-gray-200 bg-amber-50/40">Target Dry (%)</th>
-                <th className="py-2 px-3 w-32 text-right border-r border-gray-200 bg-blue-50/40">Moisture H2O (%)</th>
-                <th className="py-2 px-3 w-32 text-right border-r border-gray-200 text-gray-600">Wet Factor</th>
-                <th className="py-2 px-3 w-36 text-right bg-green-50/50 text-[#16A34A] font-bold">SET PROPORSI WET (%)</th>
+              <tr className="bg-slate-100 text-slate-700 border-b border-slate-300 font-bold select-none">
+                <th className="py-2.5 px-3 w-40 border-r border-slate-300 font-sans text-slate-800">
+                  MATERIAL
+                </th>
+                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-300 bg-amber-50/40 text-slate-700">
+                  %DRY
+                </th>
+                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-300 bg-blue-50/40 text-slate-700">
+                  MOIST (%)
+                </th>
+                <th className="py-2.5 px-3 w-32 text-right border-r border-slate-300 text-slate-700">
+                  W BASAH (t/h)
+                </th>
+                <th className="py-2.5 px-3 w-36 text-center bg-red-50/40 text-[#E31E24] font-bold">
+                  %WET (CCR)
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200">
               
-              {/* Clinker */}
-              <tr className="hover:bg-gray-50">
-                <td className="py-1.5 px-3 border-r border-gray-200 font-sans font-bold text-gray-900">Clinker</td>
-                <td className="p-0 border-r border-gray-200 bg-amber-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={dryValues.clinker}
-                    onChange={(e) => handleDryChange('clinker', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-bold text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="p-0 border-r border-gray-200 bg-blue-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={h2oValues.clinker}
-                    onChange={(e) => handleH2oChange('clinker', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-medium text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="py-1.5 px-3 border-r border-gray-200 text-right text-gray-600">
-                  {calculation.clinker.wetFactor.toFixed(4)}
-                </td>
-                <td className="py-1.5 px-3 text-right bg-green-50/30 text-gray-900 font-bold text-sm">
-                  {calculation.clinker.wet.toFixed(1)}%
-                </td>
-              </tr>
+              {itemsWithWBasah.map((m) => (
+                <tr key={m.key} className="hover:bg-slate-50/80 transition-colors">
+                  {/* Material Name */}
+                  <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900">
+                    <div className="flex items-center justify-between">
+                      <span>{m.label}</span>
+                      {m.isBuffer && (
+                        <span className="text-[10px] font-sans font-medium text-[#0284C7] bg-sky-50 px-1 py-0.2 rounded border border-sky-200">
+                          buffer
+                        </span>
+                      )}
+                    </div>
+                  </td>
 
-              {/* Gypsum */}
-              <tr className="hover:bg-gray-50">
-                <td className="py-1.5 px-3 border-r border-gray-200 font-sans font-bold text-gray-900">Gypsum</td>
-                <td className="p-0 border-r border-gray-200 bg-amber-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={dryValues.gypsum}
-                    onChange={(e) => handleDryChange('gypsum', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-bold text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="p-0 border-r border-gray-200 bg-blue-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={h2oValues.gypsum}
-                    onChange={(e) => handleH2oChange('gypsum', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-medium text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="py-1.5 px-3 border-r border-gray-200 text-right text-gray-600">
-                  {calculation.gypsum.wetFactor.toFixed(4)}
-                </td>
-                <td className="py-1.5 px-3 text-right bg-green-50/30 text-gray-900 font-bold text-sm">
-                  {calculation.gypsum.wet.toFixed(1)}%
-                </td>
-              </tr>
+                  {/* %DRY Editable Input */}
+                  <td className="p-0 border-r border-slate-300 bg-amber-50/20">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.1"
+                      value={dryValues[m.key]}
+                      onChange={(e) => handleDryChange(m.key, e.target.value)}
+                      className="w-full px-2.5 py-2 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                    />
+                  </td>
 
-              {/* Limestone */}
-              <tr className="hover:bg-gray-50">
-                <td className="py-1.5 px-3 border-r border-gray-200 font-sans font-bold text-gray-900">Limestone</td>
-                <td className="p-0 border-r border-gray-200 bg-amber-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={dryValues.limestone}
-                    onChange={(e) => handleDryChange('limestone', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-bold text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="p-0 border-r border-gray-200 bg-blue-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={h2oValues.limestone}
-                    onChange={(e) => handleH2oChange('limestone', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-medium text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="py-1.5 px-3 border-r border-gray-200 text-right text-gray-600">
-                  {calculation.limestone.wetFactor.toFixed(4)}
-                </td>
-                <td className="py-1.5 px-3 text-right bg-green-50/30 text-gray-900 font-bold text-sm">
-                  {calculation.limestone.wet.toFixed(1)}%
-                </td>
-              </tr>
+                  {/* MOIST Editable Input */}
+                  <td className="p-0 border-r border-slate-300 bg-blue-50/20">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      value={h2oValues[m.key]}
+                      onChange={(e) => handleH2oChange(m.key, e.target.value)}
+                      className="w-full px-2.5 py-2 text-right font-mono font-medium text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                    />
+                  </td>
 
-              {/* Trass */}
-              <tr className="hover:bg-gray-50">
-                <td className="py-1.5 px-3 border-r border-gray-200 font-sans font-bold text-gray-900 flex items-center justify-between">
-                  <span>Trass</span>
-                  {bufferMaterial === 'trass' && (
-                    <span className="text-[10px] font-sans text-[#0284C7] bg-sky-50 px-1 rounded">buffer</span>
-                  )}
-                </td>
-                <td className="p-0 border-r border-gray-200 bg-amber-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={dryValues.trass}
-                    onChange={(e) => handleDryChange('trass', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-bold text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="p-0 border-r border-gray-200 bg-blue-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={h2oValues.trass}
-                    onChange={(e) => handleH2oChange('trass', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-medium text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="py-1.5 px-3 border-r border-gray-200 text-right text-gray-600">
-                  {calculation.trass.wetFactor.toFixed(4)}
-                </td>
-                <td className="py-1.5 px-3 text-right bg-green-50/30 text-gray-900 font-bold text-sm">
-                  {calculation.trass.wet.toFixed(1)}%
-                </td>
-              </tr>
+                  {/* W BASAH = %Dry / (1 - (Moist / 100)) */}
+                  <td className="py-2 px-3 border-r border-slate-300 text-right font-bold text-slate-900">
+                    {m.wBasah.toFixed(2)}
+                  </td>
 
-              {/* Fly Ash */}
-              <tr className="hover:bg-gray-50">
-                <td className="py-1.5 px-3 border-r border-gray-200 font-sans font-bold text-gray-900">Fly Ash</td>
-                <td className="p-0 border-r border-gray-200 bg-amber-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={dryValues.flyAsh}
-                    onChange={(e) => handleDryChange('flyAsh', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-bold text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="p-0 border-r border-gray-200 bg-blue-50/20">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={h2oValues.flyAsh}
-                    onChange={(e) => handleH2oChange('flyAsh', e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-right font-mono font-medium text-gray-900 bg-transparent border-0 excel-cell-input"
-                  />
-                </td>
-                <td className="py-1.5 px-3 border-r border-gray-200 text-right text-gray-600">
-                  {calculation.flyAsh.wetFactor.toFixed(4)}
-                </td>
-                <td className="py-1.5 px-3 text-right bg-green-50/30 text-gray-900 font-bold text-sm">
-                  {calculation.flyAsh.wet.toFixed(1)}%
-                </td>
-              </tr>
+                  {/* %WET Badge */}
+                  <td className="py-1.5 px-3 text-center">
+                    <span className="inline-block px-3 py-1 bg-red-50 border border-red-200 text-[#E31E24] font-bold text-xs rounded font-mono shadow-2xs">
+                      {m.item.wet.toFixed(1)}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
 
-              {/* Total Row */}
-              <tr className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
-                <td className="py-2 px-3 border-r border-gray-200 font-sans">TOTAL</td>
-                <td className={`py-2 px-3 border-r border-gray-200 text-right ${
-                  calculation.isValidDry ? 'text-[#16A34A]' : 'text-[#E31E24]'
-                }`}>
+              {/* Baris TOTAL */}
+              <tr className="bg-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
+                <td className="py-2.5 px-3 border-r border-slate-300 font-sans">
+                  TOTAL
+                </td>
+                <td className="py-2.5 px-3 border-r border-slate-300 text-right font-bold text-[#16A34A]">
                   {calculation.dryTotal.toFixed(1)}%
                 </td>
-                <td className="py-2 px-3 border-r border-gray-200 text-right text-gray-400">-</td>
-                <td className="py-2 px-3 border-r border-gray-200 text-right text-gray-500">
-                  {(
-                    calculation.clinker.wetFactor +
-                    calculation.gypsum.wetFactor +
-                    calculation.limestone.wetFactor +
-                    calculation.trass.wetFactor +
-                    calculation.flyAsh.wetFactor
-                  ).toFixed(4)}
+                <td className="py-2.5 px-3 border-r border-slate-300 text-right text-slate-400 font-normal">
+                  —
                 </td>
-                <td className={`py-2 px-3 text-right text-base ${
-                  calculation.isValidWet ? 'text-[#16A34A] bg-green-100/60' : 'text-[#E31E24] bg-red-100/60'
-                }`}>
-                  {calculation.wetTotal.toFixed(1)}%
+                <td className="py-2.5 px-3 border-r border-slate-300 text-right font-bold text-slate-900">
+                  {totalWBasahFormatted} t/h
+                </td>
+                <td className="py-1.5 px-3 text-center">
+                  <span className="inline-block px-3 py-1 bg-red-100 border border-red-300 text-[#E31E24] font-bold text-xs rounded font-mono shadow-2xs">
+                    {calculation.wetTotal.toFixed(1)}%
+                  </span>
                 </td>
               </tr>
 
@@ -608,36 +540,69 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
           </table>
         </div>
 
-        {/* Admixture & Hour Controls */}
-        <div className="p-3 bg-gray-50/60 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+        {/* 2 Kotak Summary Bersanding: Total Massa Basah & Air Menguap (Mill) */}
+        <div className="p-4 bg-slate-50/50 border-t border-slate-300">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            
+            {/* Kotak Kiri: Total Massa Basah */}
+            <div className="bg-white border border-slate-300 rounded-xl p-3.5 shadow-2xs">
+              <span className="text-[11px] font-semibold text-slate-500 block">
+                Total Massa Basah
+              </span>
+              <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 block mt-0.5">
+                {totalWBasahFormatted} ton/jam
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                Feeder mill input
+              </span>
+            </div>
+
+            {/* Kotak Kanan: Air Menguap (Mill) */}
+            <div className="bg-white border border-slate-300 rounded-xl p-3.5 shadow-2xs">
+              <span className="text-[11px] font-semibold text-slate-500 block">
+                Air Menguap (Mill)
+              </span>
+              <span className="text-lg sm:text-xl font-bold font-mono text-slate-900 block mt-0.5">
+                {airMenguapFormatted} ton/jam
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                Uap air cerobong
+              </span>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Admixture & Hour Controls Bar */}
+        <div className="p-3.5 bg-slate-100/60 border-t border-slate-300 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <div>
-            <label className="block text-gray-700 font-bold mb-1">Admixture</label>
+            <label className="block text-slate-700 font-bold mb-1">Admixture</label>
             <input
               type="text"
               value={admixtureName}
               onChange={(e) => setAdmixtureName(e.target.value)}
               placeholder="CGA Sika"
-              className="w-full px-2.5 py-1.5 font-semibold bg-white border border-gray-300 rounded-lg focus:outline-none"
+              className="w-full px-2.5 py-1.5 font-semibold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-400"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-bold mb-1">Dosis (PPM)</label>
+            <label className="block text-slate-700 font-bold mb-1">Dosis (PPM)</label>
             <input
               type="number"
               value={admixturePpm}
               onChange={(e) => setAdmixturePpm(parseInt(e.target.value) || 0)}
               placeholder="400"
-              className="w-full px-2.5 py-1.5 font-mono font-semibold bg-white border border-gray-300 rounded-lg focus:outline-none"
+              className="w-full px-2.5 py-1.5 font-mono font-semibold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-400"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-bold mb-1">Berlaku Mulai Jam</label>
+            <label className="block text-slate-700 font-bold mb-1">Berlaku Mulai Jam</label>
             <select
               value={appliedHour}
               onChange={(e) => setAppliedHour(e.target.value)}
-              className="w-full px-2.5 py-1.5 font-mono font-bold bg-white border border-gray-300 rounded-lg focus:outline-none"
+              className="w-full px-2.5 py-1.5 font-mono font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-400"
             >
               {currentMillData.hourlyRows.map(r => (
                 <option key={r.hour} value={r.hour}>
@@ -649,8 +614,8 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         </div>
 
         {/* Actions Bar */}
-        <div className="p-3 bg-white border-t border-gray-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="font-mono text-gray-600">
+        <div className="p-3.5 bg-white border-t border-slate-300 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="font-mono text-slate-600">
             Target Mill: <strong>{selectedMillCode}</strong> · {calculation.isValidWet && calculation.isValidDry ? (
               <span className="text-[#16A34A] font-bold">100.0% Valid</span>
             ) : (
@@ -663,7 +628,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               type="button"
               onClick={handleGenerateCcrImage}
               disabled={!calculation.isValidDry || !calculation.isValidWet}
-              className="px-3.5 py-1.5 font-bold text-[#0284C7] bg-sky-50 hover:bg-sky-100 disabled:opacity-40 border border-sky-300 rounded-lg transition-colors flex items-center gap-1.5"
+              className="px-3.5 py-2 font-bold text-[#0284C7] bg-sky-50 hover:bg-sky-100 disabled:opacity-40 border border-sky-300 rounded-lg transition-colors flex items-center gap-1.5 shadow-2xs"
             >
               <Camera className="w-3.5 h-3.5" />
               <span>Share ke CCR (Gambar)</span>
@@ -673,7 +638,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               type="button"
               onClick={handleSaveAndActivate}
               disabled={!calculation.isValidDry || !calculation.isValidWet}
-              className="px-4 py-1.5 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 disabled:opacity-40 rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 disabled:opacity-40 rounded-lg shadow-xs transition-colors flex items-center gap-1.5"
             >
               <Save className="w-3.5 h-3.5" />
               <span>Simpan & Aktifkan ({selectedMillCode})</span>
@@ -684,13 +649,13 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       </div>
 
       {/* Riwayat Proporsi Khusus Mill Ini */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-xs">
-        <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5 text-gray-500" />
+      <div className="bg-white border-1.5 border-slate-300 rounded-xl p-4 shadow-xs">
+        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-1.5 pb-2 border-b border-slate-200">
+          <Clock className="w-3.5 h-3.5 text-slate-500" />
           <span>Riwayat Proporsi {selectedMillCode} Shift Ini</span>
         </h3>
 
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-slate-100">
           {currentMillData.proporsiHistory.map((prop, idx) => {
             const m = prop.materials;
             const isLatest = idx === currentMillData.proporsiHistory.length - 1;
@@ -699,18 +664,18 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               <div key={prop.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-gray-900">{prop.label}</span>
+                    <span className="font-bold text-slate-900">{prop.label}</span>
                     {isLatest && (
                       <span className="px-1.5 py-0.2 text-[10px] font-bold text-white bg-[#16A34A] rounded">
                         Aktif
                       </span>
                     )}
                   </div>
-                  <div className="font-mono text-gray-600 text-[11px] mt-0.5">
+                  <div className="font-mono text-slate-600 text-[11px] mt-0.5">
                     {m.clinker.wet}% Clk | {m.gypsum.wet}% Gyp | {m.limestone.wet}% Lst | {m.trass.wet}% Trass | {m.flyAsh.wet}% FA
                   </div>
                 </div>
-                <div className="text-gray-500 font-mono text-[11px]">
+                <div className="text-slate-500 font-mono text-[11px]">
                   {prop.admixtureName} {prop.admixturePpm} PPM
                 </div>
               </div>
@@ -719,37 +684,45 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         </div>
       </div>
 
-      {/* Share to CCR Modal */}
+      {/* Share to CCR Modal with Rendered PNG Preview */}
       {showShareModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-xs font-bold text-gray-900">
-                Gambar Proporsi CCR ({selectedMillCode})
+          <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl border-1.5 border-slate-300 overflow-hidden">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5 text-[#0284C7]" />
+                <span>Gambar Setpoint Feeder CCR ({selectedMillCode})</span>
               </h3>
-              <button onClick={() => setShowShareModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+              <button 
+                onClick={() => setShowShareModal(false)} 
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-4 space-y-3">
               {isGeneratingImage ? (
-                <div className="py-8 text-center text-xs text-gray-500">
-                  <div className="animate-spin w-6 h-6 border-2 border-[#0284C7] border-t-transparent rounded-full mx-auto mb-2" />
-                  Merender gambar CCR...
+                <div className="py-12 text-center text-xs text-slate-500">
+                  <div className="animate-spin w-7 h-7 border-2 border-[#0284C7] border-t-transparent rounded-full mx-auto mb-2.5" />
+                  Merender gambar CCR standar Semen Merah Putih...
                 </div>
               ) : generatedImageUrl ? (
-                <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-100 flex justify-center p-2">
-                  <img src={generatedImageUrl} alt="Proporsi CCR" className="max-h-72 w-auto object-contain rounded" />
+                <div className="border border-slate-300 rounded-lg overflow-hidden bg-slate-100 flex justify-center p-2 shadow-inner">
+                  <img 
+                    src={generatedImageUrl} 
+                    alt="Proporsi CCR" 
+                    className="max-h-80 w-auto object-contain rounded shadow-xs" 
+                  />
                 </div>
               ) : null}
             </div>
 
-            <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between text-xs">
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-300 flex items-center justify-between text-xs">
               <button
                 type="button"
                 onClick={() => setShowShareModal(false)}
-                className="text-gray-600 hover:text-gray-800 font-semibold"
+                className="text-slate-600 hover:text-slate-800 font-semibold px-2 py-1"
               >
                 Tutup
               </button>
@@ -759,7 +732,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                   type="button"
                   onClick={handleDownloadImage}
                   disabled={!generatedImageUrl}
-                  className="px-3 py-1.5 font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 flex items-center gap-1"
+                  className="px-3 py-1.5 font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 flex items-center gap-1 shadow-2xs"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Unduh PNG</span>
@@ -769,12 +742,12 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                   type="button"
                   onClick={handleCopyImageToClipboard}
                   disabled={!generatedImageUrl}
-                  className="px-3.5 py-1.5 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-xs flex items-center gap-1"
+                  className="px-3.5 py-1.5 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-xs flex items-center gap-1 transition-colors"
                 >
                   {copySuccess ? (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      <span>Tersalin!</span>
+                      <span>Tersalin ke Clipboard!</span>
                     </>
                   ) : (
                     <>

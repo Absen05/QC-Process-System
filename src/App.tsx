@@ -101,7 +101,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F3F4F6] flex flex-col font-sans selection:bg-[#E31E24]/20 selection:text-[#E31E24]">
+    <div className="min-h-screen bg-[#E2E8F0] flex flex-col font-sans selection:bg-[#E31E24]/20 selection:text-[#E31E24]">
       {/* Top Navigation */}
       <Navbar
         currentTab={currentTab}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShiftSession } from '../../types/qc';
-import { Sparkles, X, RefreshCw, CheckCircle2, Factory } from 'lucide-react';
+import { Sparkles, X, RefreshCw, Factory } from 'lucide-react';
 
 interface AiAnalyzerModalProps {
   isOpen: boolean;
@@ -84,26 +84,26 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-      <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+      <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl border-1.5 border-slate-300 overflow-hidden">
         
         {/* Header */}
-        <div className="px-5 py-4 bg-gradient-to-r from-sky-50 to-indigo-50/60 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-5 py-4 bg-gradient-to-r from-sky-50 to-indigo-50/60 border-b border-slate-300 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#0284C7] text-white flex items-center justify-center shadow-xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-900">
+              <h3 className="text-sm font-bold text-slate-900">
                 Analisa Tren Kualitas AI (Google Gemini)
               </h3>
-              <p className="text-xs text-gray-500 font-mono">
+              <p className="text-xs text-slate-500 font-mono">
                 {session.shiftName} ({session.shiftHours}) · Grinding Plant Ciwandan
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-white/80 transition-colors"
+            className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-white/80 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -114,46 +114,46 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
           
           {/* Dual Mill Quick Overview */}
           <div className="grid grid-cols-2 gap-3">
-            <div className={`p-2.5 rounded-lg border ${session.tm.isRunning ? 'bg-amber-50/50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
-              <div className="font-bold text-gray-900 flex items-center gap-1.5 mb-1">
+            <div className={`p-2.5 rounded-lg border ${session.tm.isRunning ? 'bg-amber-50/50 border-amber-300' : 'bg-slate-50 border-slate-300'}`}>
+              <div className="font-bold text-slate-900 flex items-center gap-1.5 mb-1">
                 <Factory className="w-3.5 h-3.5 text-amber-600" />
                 <span>Mill 1 (TM)</span>
               </div>
-              <div className="text-gray-600 font-mono text-[11px]">
+              <div className="text-slate-600 font-mono text-[11px]">
                 {session.tm.isRunning ? `${session.tm.productType} · ${session.tm.siloName}` : 'Standby / Tidak Beroperasi'}
               </div>
             </div>
 
-            <div className={`p-2.5 rounded-lg border ${session.vrm.isRunning ? 'bg-sky-50/50 border-sky-200' : 'bg-gray-50 border-gray-200'}`}>
-              <div className="font-bold text-gray-900 flex items-center gap-1.5 mb-1">
+            <div className={`p-2.5 rounded-lg border ${session.vrm.isRunning ? 'bg-sky-50/50 border-sky-300' : 'bg-slate-50 border-slate-300'}`}>
+              <div className="font-bold text-slate-900 flex items-center gap-1.5 mb-1">
                 <Factory className="w-3.5 h-3.5 text-[#0284C7]" />
                 <span>Mill 2 (VRM)</span>
               </div>
-              <div className="text-gray-600 font-mono text-[11px]">
+              <div className="text-slate-600 font-mono text-[11px]">
                 {session.vrm.isRunning ? `${session.vrm.productType} · ${session.vrm.siloName}` : 'Standby / Tidak Beroperasi'}
               </div>
             </div>
           </div>
 
           {/* AI Result Box */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
+          <div className="bg-slate-50 border border-slate-300 rounded-lg p-4 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold uppercase tracking-wider text-[#0284C7] text-[10px]">
                 Rangkuman Analitis Kualitas Shift:
               </span>
               {session.aiInsightTimestamp && (
-                <span className="text-[10px] text-gray-400 font-mono">
+                <span className="text-[10px] text-slate-400 font-mono">
                   {new Date(session.aiInsightTimestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
             </div>
 
             {session.aiInsight ? (
-              <p className="text-sm font-medium text-gray-800 leading-relaxed">
+              <p className="text-sm font-medium text-slate-800 leading-relaxed">
                 "{session.aiInsight}"
               </p>
             ) : (
-              <p className="text-gray-500 italic">
+              <p className="text-slate-500 italic">
                 Belum ada analisa untuk shift aktif ini. Tekan tombol di bawah untuk memproses analisa stabilitas kualitas.
               </p>
             )}
@@ -162,11 +162,11 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-300 flex items-center justify-between">
           <button
             type="button"
             onClick={onClose}
-            className="px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900"
+            className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900"
           >
             Tutup
           </button>
@@ -175,7 +175,7 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
             type="button"
             onClick={runAiAnalysis}
             disabled={isAnalyzing}
-            className="px-4 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 disabled:opacity-50 rounded-lg shadow-xs flex items-center gap-1.5"
+            className="px-4 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 disabled:opacity-50 rounded-lg shadow-xs flex items-center gap-1.5 transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
             <span>{isAnalyzing ? 'Menganalisa Data Shift...' : 'Jalankan Analisa AI'}</span>
