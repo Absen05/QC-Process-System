@@ -124,6 +124,17 @@ export interface CpShiftSilo {
   so3: number | null;
 }
 
+export interface CpProductSample {
+  id: string; // 'cp_1' | 'cp_2'
+  label: string; // 'CP Produk 1' | 'CP Produk 2'
+  productType: string;
+  siloName: string;
+  blaine: number | null;
+  r45: number | null;
+  h2o: number | null;
+  so3: number | null;
+}
+
 // Independent Mill Session State for TM & VRM running concurrently
 export interface MillSessionData {
   millType: MillType;
@@ -183,7 +194,8 @@ export interface ShiftSession {
   // Shared / Plant-wide sections
   clinkerWf: ClinkerWfData;
   moistureWf: MoistureRawMaterialWf;
-  cpShiftSilo: CpShiftSilo;
+  cpShiftSilo?: CpShiftSilo;
+  cpProducts: [CpProductSample, CpProductSample];
 
   // Unified Incoming Raw Materials
   incomingMaterials: UnifiedIncomingMaterial[];

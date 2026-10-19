@@ -16,16 +16,19 @@ import {
   getStoredMasterTargets, 
   saveStoredMasterTargets, 
   switchOrStartShift, 
+  resumeLatestActiveStateForUser,
   resetFactoryData 
 } from './services/qcStorage';
 
-import { Navbar } from './components/qc/Navbar';
+import { Navbar, MainAppTab } from './components/qc/Navbar';
 import { LoginPage } from './components/qc/LoginPage';
 import { ProfileModal } from './components/qc/ProfileModal';
 import { ShiftModal } from './components/qc/ShiftModal';
 import { AiAnalyzerModal } from './components/qc/AiAnalyzerModal';
 import { DataGridPage } from './components/qc/DataGridPage';
 import { ProporsiPage } from './components/qc/ProporsiPage';
+import { DataWfPage } from './components/qc/DataWfPage';
+import { DataCpPage } from './components/qc/DataCpPage';
 import { RawMaterialsPage } from './components/qc/RawMaterialsPage';
 import { WhatsAppReportPage } from './components/qc/WhatsAppReportPage';
 import { RiwayatPage } from './components/qc/RiwayatPage';
@@ -33,7 +36,13 @@ import { MasterDataPage } from './components/qc/MasterDataPage';
 
 export default function App() {
   const [auth, setAuth] = useState<AuthSession>(() => getStoredAuth());
-  const [currentTab, setCurrentTab] = useState<'grid' | 'proporsi' | 'materials' | 'report' | 'riwayat' | 'master'>('grid');
+  const [currentTab, setCurrentTab] = useState<MainAppTab>(() => {
+    const storedAuth = getStoredAuth();
+    if (storedAuth.isLoggedIn && storedAuth.user?.role === 'supervisor') {
+      return 'master';
+    }
+    return 'grid';
+  });
   const [session, setSession] = useState<ShiftSession>(() => getStoredActiveSession());
   const [masterTargets, setMasterTargets] = useState<MasterTargetDryMap>(() => getStoredMasterTargets());
   
@@ -42,7 +51,7 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [proporsiTargetMill, setProporsiTargetMill] = useState<'TM' | 'VRM'>('TM');
 
-  // Handle successful login
+  // Handle successful login: seamlessly resume state and route by role (Poin 1 & 2)
   const handleLoginSuccess = (user: UserAccount, date: string, shift: ShiftName) => {
     const newAuth: AuthSession = {
       isLoggedIn: true,
@@ -53,24 +62,21 @@ export default function App() {
     setAuth(newAuth);
     saveStoredAuth(newAuth);
 
-    // Switch or resume active shift for this date & shift
-    const loadedSession = switchOrStartShift(
-      date,
-      shift,
-      user.name,
-      session.tm?.isRunning ?? true,
-      session.tm?.productType ?? 'PCC NON FA',
-      session.tm?.siloName ?? 'SILO 5',
-      session.vrm?.isRunning ?? true,
-      session.vrm?.productType ?? 'PCC Plus FA',
-      session.vrm?.siloName ?? 'SILO 4'
-    );
+    // Resume latest active state left by coworkers from prior shift
+    const loadedSession = resumeLatestActiveStateForUser(user.name, date, shift);
     setSession(loadedSession);
-    setCurrentTab('grid');
+
+    // Direct SI/Admin to 'master' (Master Data), and Analyst to 'grid' (Input Data) (Poin 1 & 2)
+    if (user.role === 'supervisor') {
+      setCurrentTab('master');
+    } else {
+      setCurrentTab('grid');
+    }
   };
 
-  // Handle user logout
+  // Handle user logout: persist state permanently before clearing auth
   const handleLogout = () => {
+    saveStoredActiveSession(session);
     logoutUser();
     setAuth({
       isLoggedIn: false,
@@ -165,7 +171,7 @@ export default function App() {
 
       {/* Main Viewport Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4">
-        {/* Tab 1: INPUT DATA */}
+        {/* Tab 1: INPUT DATA (Tabel Rutin Jam TM & VRM) */}
         {currentTab === 'grid' && (
           <DataGridPage
             session={session}
@@ -174,7 +180,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 2: PROPORSI */}
+        {/* Tab 2: PROPORSI (Kalkulasi Wet Base & Share CCR) */}
         {currentTab === 'proporsi' && (
           <ProporsiPage
             session={session}
@@ -185,7 +191,23 @@ export default function App() {
           />
         )}
 
-        {/* Tab 3: INCOMING */}
+        {/* Tab 3: DATA WF (Clinker & Moisture Raw Material WF) */}
+        {currentTab === 'data_wf' && (
+          <DataWfPage
+            session={session}
+            onUpdateSession={handleUpdateSession}
+          />
+        )}
+
+        {/* Tab 4: DATA CP (Dual CP Sampling Produk & Silo) */}
+        {currentTab === 'data_cp' && (
+          <DataCpPage
+            session={session}
+            onUpdateSession={handleUpdateSession}
+          />
+        )}
+
+        {/* Tab 5: INCOMING (Material Masuk dengan Tombol Hapus pada Setiap Kartu) */}
         {currentTab === 'materials' && (
           <RawMaterialsPage
             session={session}
@@ -193,21 +215,21 @@ export default function App() {
           />
         )}
 
-        {/* Tab 4: LAPORAN WA */}
+        {/* Tab 6: LAPORAN WA (Format Bersih, Tanpa Ikon/Poin, Comma Decimal) */}
         {currentTab === 'report' && (
           <WhatsAppReportPage
             session={session}
           />
         )}
 
-        {/* Tab 5: RIWAYAT (Poin 3) */}
+        {/* Tab 7: RIWAYAT (Pencarian & Arsip Shift Lampau) */}
         {currentTab === 'riwayat' && (
           <RiwayatPage
             onLoadArchiveToActive={handleLoadArchiveToActive}
           />
         )}
 
-        {/* Tab 6: MASTER DATA (Supervisor only) */}
+        {/* Tab 8: MASTER DATA (Supervisor only) */}
         {currentTab === 'master' && isSupervisor && (
           <MasterDataPage
             masterTargets={masterTargets}
@@ -233,7 +255,7 @@ export default function App() {
         onUpdateSession={handleUpdateSession}
       />
 
-      {/* User Profile & PIN Change Modal (Poin 2) */}
+      {/* User Profile & PIN Change Modal */}
       <ProfileModal
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}

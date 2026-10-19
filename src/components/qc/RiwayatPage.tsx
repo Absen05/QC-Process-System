@@ -83,7 +83,7 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
               >
                 {Object.keys(SHIFT_DEFINITIONS).map(s => (
                   <option key={s} value={s}>
-                    {s} ({SHIFT_DEFINITIONS[s as ShiftName].hours.length - 1} Jam)
+                    {s} ({SHIFT_DEFINITIONS[s as ShiftName].timeRange})
                   </option>
                 ))}
               </select>
@@ -283,16 +283,29 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
               </div>
             </div>
 
-            {/* CP Shift */}
+            {/* CP Products */}
             <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
               <span className="font-bold text-slate-900 uppercase block pb-1 border-b border-slate-200 mb-2">
-                📦 CP Shift ({searchedSession.cpShiftSilo.siloName})
+                📦 DATA CP ({searchedSession.cpProducts?.length || 1} Produk)
               </span>
-              <div className="space-y-1 text-slate-800">
-                <div>Blaine : <strong>{searchedSession.cpShiftSilo.blaine ?? '-'} cm²/gr</strong></div>
-                <div>R45    : <strong>{searchedSession.cpShiftSilo.r45 ?? '-'}%</strong></div>
-                <div>H2O    : <strong>{searchedSession.cpShiftSilo.h2o ?? '-'}%</strong></div>
-                <div>SO3    : <strong>{searchedSession.cpShiftSilo.so3 ?? '-'}%</strong></div>
+              <div className="space-y-2 text-slate-800">
+                {(searchedSession.cpProducts || (searchedSession.cpShiftSilo ? [
+                  {
+                    id: 'cp_1',
+                    label: 'CP Produk 1',
+                    productType: searchedSession.tm.productType || 'SEMEN',
+                    siloName: searchedSession.cpShiftSilo.siloName,
+                    blaine: searchedSession.cpShiftSilo.blaine,
+                    r45: searchedSession.cpShiftSilo.r45,
+                    h2o: searchedSession.cpShiftSilo.h2o,
+                    so3: searchedSession.cpShiftSilo.so3,
+                  }
+                ] : [])).map((cp, idx) => (
+                  <div key={cp.id || idx} className="text-[11px] pb-1.5 border-b border-slate-100 last:border-b-0">
+                    <div className="font-bold text-slate-900">{cp.label || `CP ${idx + 1}`}: {cp.productType} ({cp.siloName})</div>
+                    <div>Blaine: <strong>{cp.blaine ?? '-'}</strong> cm²/gr | R45: <strong>{cp.r45 ?? '-'}%</strong> | H2O: <strong>{cp.h2o ?? '-'}%</strong> | SO3: <strong>{cp.so3 ?? '-'}%</strong></div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

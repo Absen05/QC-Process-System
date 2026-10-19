@@ -43,7 +43,7 @@ export const WhatsAppReportPage: React.FC<WhatsAppReportPageProps> = ({ session 
             </h2>
           </div>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
-            {session.shiftName} ({session.shiftHours}) · Proporsi Menggunakan Target Dry (Kering)
+            {session.shiftName} ({session.shiftHours}) · Analis: <strong>{session.analystName}</strong>
           </p>
         </div>
 
@@ -62,7 +62,7 @@ export const WhatsAppReportPage: React.FC<WhatsAppReportPageProps> = ({ session 
             ) : (
               <>
                 <Copy className="w-5 h-5" />
-                <span>📋 COPY REPORT WA</span>
+                <span>COPY REPORT WA</span>
               </>
             )}
           </button>

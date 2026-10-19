@@ -9,7 +9,8 @@ import {
   MillSessionData,
   UserAccount,
   ProductQualitySpec,
-  CgaMasterSetting
+  CgaMasterSetting,
+  CpProductSample
 } from '../types/qc';
 import { SHIFT_DEFINITIONS, calculateWetBase } from '../utils/qcCalculations';
 
@@ -206,6 +207,29 @@ export const DEFAULT_CP_SHIFT_SILO: CpShiftSilo = {
   so3: null,
 };
 
+export const DEFAULT_CP_PRODUCTS: [CpProductSample, CpProductSample] = [
+  {
+    id: 'cp_1',
+    label: 'CP Produk 1',
+    productType: 'PCC Plus FA',
+    siloName: 'SILO 4',
+    blaine: null,
+    r45: null,
+    h2o: null,
+    so3: null,
+  },
+  {
+    id: 'cp_2',
+    label: 'CP Produk 2',
+    productType: 'PCC NON FA',
+    siloName: 'SILO 2',
+    blaine: null,
+    r45: null,
+    h2o: null,
+    so3: null,
+  },
+];
+
 /**
  * Creates initial mill data for either TM or VRM
  * If isEmpty is true, rows start clean without prior shift numbers
@@ -320,6 +344,7 @@ export function createInitialShiftSession(
     clinkerWf: { ...DEFAULT_CLINKER_WF },
     moistureWf: { ...DEFAULT_MOISTURE_WF },
     cpShiftSilo: { ...DEFAULT_CP_SHIFT_SILO },
+    cpProducts: JSON.parse(JSON.stringify(DEFAULT_CP_PRODUCTS)),
     incomingMaterials: JSON.parse(JSON.stringify(DEFAULT_UNIFIED_INCOMING)),
     aiInsight: undefined,
     aiInsightTimestamp: undefined,

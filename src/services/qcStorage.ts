@@ -17,6 +17,7 @@ import {
   DEFAULT_CGA_SETTINGS,
   createInitialShiftSession 
 } from '../data/qcDefaults';
+import { SHIFT_DEFINITIONS } from '../utils/qcCalculations';
 
 const STORAGE_KEYS = {
   CURRENT_ROLE: 'qc_cemindo_current_role',
@@ -330,6 +331,31 @@ export function getStoredActiveSession(): ShiftSession {
     if (data) {
       const parsed = JSON.parse(data);
       if (parsed && parsed.tm && parsed.vrm && parsed.incomingMaterials) {
+        // Ensure cpProducts exists
+        if (!parsed.cpProducts || !Array.isArray(parsed.cpProducts) || parsed.cpProducts.length < 2) {
+          parsed.cpProducts = [
+            {
+              id: 'cp_1',
+              label: 'CP Produk 1',
+              productType: parsed.tm?.productType || 'PCC Plus FA',
+              siloName: parsed.cpShiftSilo?.siloName || 'SILO 4',
+              blaine: parsed.cpShiftSilo?.blaine ?? null,
+              r45: parsed.cpShiftSilo?.r45 ?? null,
+              h2o: parsed.cpShiftSilo?.h2o ?? null,
+              so3: parsed.cpShiftSilo?.so3 ?? null,
+            },
+            {
+              id: 'cp_2',
+              label: 'CP Produk 2',
+              productType: parsed.vrm?.productType || 'PCC NON FA',
+              siloName: 'SILO 2',
+              blaine: null,
+              r45: null,
+              h2o: null,
+              so3: null,
+            },
+          ];
+        }
         return parsed;
       }
     }
@@ -352,10 +378,71 @@ export function saveStoredActiveSession(session: ShiftSession): void {
 }
 
 /**
+ * Resumes the latest active state for a user upon login:
+ * Preserves all latest active proportions, incoming parameters, mill running status,
+ * WF and CP data left by coworkers from the previous shift without resetting.
+ */
+export function resumeLatestActiveStateForUser(
+  userName: string,
+  targetDate?: string,
+  targetShift?: ShiftName
+): ShiftSession {
+  const current = getStoredActiveSession();
+
+  if (targetDate) {
+    current.date = targetDate;
+  }
+
+  if (targetShift && current.shiftName !== targetShift) {
+    current.shiftName = targetShift;
+    const shiftDef = SHIFT_DEFINITIONS[targetShift] || SHIFT_DEFINITIONS['SHIFT 2'];
+    current.shiftHours = shiftDef.timeRange;
+
+    // Adjust row counts if shift duration differs while preserving values
+    if (current.tm.hourlyRows.length !== shiftDef.hours.length) {
+      current.tm.hourlyRows = shiftDef.hours.map((hour, idx) => ({
+        hour,
+        blaine: current.tm.hourlyRows[idx]?.blaine ?? null,
+        residuR45: current.tm.hourlyRows[idx]?.residuR45 ?? null,
+        moistureH2O: current.tm.hourlyRows[idx]?.moistureH2O ?? null,
+        so3: current.tm.hourlyRows[idx]?.so3 ?? null,
+        freelimeFCaO: current.tm.hourlyRows[idx]?.freelimeFCaO ?? null,
+        tph: current.tm.hourlyRows[idx]?.tph ?? null,
+        proporsiVersionId: current.tm.hourlyRows[idx]?.proporsiVersionId,
+        proporsiDisplay: current.tm.hourlyRows[idx]?.proporsiDisplay,
+        admixtureDisplay: current.tm.hourlyRows[idx]?.admixtureDisplay,
+        notes: current.tm.hourlyRows[idx]?.notes,
+      }));
+    }
+
+    if (current.vrm.hourlyRows.length !== shiftDef.hours.length) {
+      current.vrm.hourlyRows = shiftDef.hours.map((hour, idx) => ({
+        hour,
+        blaine: current.vrm.hourlyRows[idx]?.blaine ?? null,
+        residuR45: current.vrm.hourlyRows[idx]?.residuR45 ?? null,
+        moistureH2O: current.vrm.hourlyRows[idx]?.moistureH2O ?? null,
+        so3: current.vrm.hourlyRows[idx]?.so3 ?? null,
+        freelimeFCaO: current.vrm.hourlyRows[idx]?.freelimeFCaO ?? null,
+        tph: current.vrm.hourlyRows[idx]?.tph ?? null,
+        proporsiVersionId: current.vrm.hourlyRows[idx]?.proporsiVersionId,
+        proporsiDisplay: current.vrm.hourlyRows[idx]?.proporsiDisplay,
+        admixtureDisplay: current.vrm.hourlyRows[idx]?.admixtureDisplay,
+        notes: current.vrm.hourlyRows[idx]?.notes,
+      }));
+    }
+  }
+
+  current.analystName = userName;
+  saveStoredActiveSession(current);
+  return current;
+}
+
+/**
  * Switch or start a new shift:
  * 1. Archives current active shift
  * 2. Checks if the target date+shift has an existing archive (to resume)
- * 3. If no archive exists, creates a completely FRESH/EMPTY data session (zero residuals!)
+ * 3. If no archive exists, carries forward all active proportions, incoming configurations,
+ *    and mill settings while resetting hourly rows for the fresh shift.
  */
 export function switchOrStartShift(
   targetDate: string,
@@ -381,7 +468,6 @@ export function switchOrStartShift(
   // 2. Check if archive exists for target
   const existing = getArchivedShift(targetDate, targetShift);
   if (existing) {
-    // If resumed, update analyst name if changed
     const resumed: ShiftSession = {
       ...existing,
       analystName: analystName || existing.analystName,
@@ -390,15 +476,34 @@ export function switchOrStartShift(
     return resumed;
   }
 
-  // 3. Create fresh, clean shift (empty input cells)
+  // 3. Create fresh shift but preserve incoming materials & active proportions from latest session
+  const current = getStoredActiveSession();
   const freshSession = createInitialShiftSession(targetShift, targetDate, analystName);
+  
   freshSession.tm.isRunning = tmRunning;
   freshSession.tm.productType = tmProduct;
   freshSession.tm.siloName = tmSilo;
+  if (current?.tm?.proporsiHistory?.length > 0) {
+    freshSession.tm.proporsiHistory = [...current.tm.proporsiHistory];
+  }
 
   freshSession.vrm.isRunning = vrmRunning;
   freshSession.vrm.productType = vrmProduct;
   freshSession.vrm.siloName = vrmSilo;
+  if (current?.vrm?.proporsiHistory?.length > 0) {
+    freshSession.vrm.proporsiHistory = [...current.vrm.proporsiHistory];
+  }
+
+  // Carry forward incoming materials and CP product configurations
+  if (current?.incomingMaterials?.length > 0) {
+    freshSession.incomingMaterials = JSON.parse(JSON.stringify(current.incomingMaterials));
+  }
+  if (current?.cpProducts?.length === 2) {
+    freshSession.cpProducts = [
+      { ...current.cpProducts[0], blaine: null, r45: null, h2o: null, so3: null },
+      { ...current.cpProducts[1], blaine: null, r45: null, h2o: null, so3: null },
+    ];
+  }
 
   saveStoredActiveSession(freshSession);
   return freshSession;

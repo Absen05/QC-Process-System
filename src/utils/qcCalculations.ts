@@ -14,49 +14,49 @@ export const SHIFT_DEFINITIONS: Record<ShiftName, ShiftDefinition> = {
     label: 'Shift 1 (Malam / Pagi)',
     category: 'Normal (8 Jam)',
     timeRange: '00:00 - 08:00',
-    hours: ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00'],
+    hours: ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00'],
   },
   'SHIFT 2': {
     name: 'SHIFT 2',
     label: 'Shift 2 (Pagi / Siang)',
     category: 'Normal (8 Jam)',
     timeRange: '08:00 - 16:00',
-    hours: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'],
+    hours: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'],
   },
   'SHIFT 3': {
     name: 'SHIFT 3',
     label: 'Shift 3 (Sore / Malam)',
     category: 'Normal (8 Jam)',
     timeRange: '16:00 - 24:00',
-    hours: ['16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00', '24:00'],
+    hours: ['16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'],
   },
   'AM 1': {
     name: 'AM 1',
     label: 'AM 1 (Lembur 12 Jam Siang)',
     category: 'Lembur V1 (12 Jam)',
     timeRange: '08:00 - 20:00',
-    hours: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'],
+    hours: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'],
   },
   'PM 1': {
     name: 'PM 1',
     label: 'PM 1 (Lembur 12 Jam Malam)',
     category: 'Lembur V1 (12 Jam)',
     timeRange: '20:00 - 08:00',
-    hours: ['20:00', '21:00', '22:00', '23:00', '00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00'],
+    hours: ['20:00', '21:00', '22:00', '23:00', '00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00'],
   },
   'AM 2': {
     name: 'AM 2',
     label: 'AM 2 (Lembur 10 Jam Siang)',
     category: 'Lembur V2 (10 Jam)',
     timeRange: '08:00 - 18:00',
-    hours: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'],
+    hours: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
   },
   'PM 2': {
     name: 'PM 2',
     label: 'PM 2 (Lembur 10 Jam Malam)',
     category: 'Lembur V2 (10 Jam)',
     timeRange: '22:00 - 08:00',
-    hours: ['22:00', '23:00', '00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00'],
+    hours: ['22:00', '23:00', '00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00'],
   },
 };
 
@@ -301,144 +301,217 @@ export function formatIndonesianDate(dateString: string): string {
   }
 }
 
-function fmtVal(val: number | null | undefined, decimals = 2, unit = ''): string {
+function fmtNumComma(val: number | null | undefined, decimals = 2): string {
   if (val === null || val === undefined || isNaN(val)) {
     return '**';
   }
-  return `${Number(val.toFixed(decimals))}${unit}`;
+  return Number(val.toFixed(decimals)).toString().replace('.', ',');
+}
+
+function renderCleanMillBlock(mill: MillSessionData): string {
+  const blaineVals = mill.hourlyRows.map(r => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  const r45Vals = mill.hourlyRows.map(r => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  const h2oVals = mill.hourlyRows.map(r => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  const so3Vals = mill.hourlyRows.map(r => r.so3).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  const tphVals = mill.hourlyRows.map(r => r.tph).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+
+  const avgBlaine = blaineVals.length > 0 ? Math.round(blaineVals.reduce((a, b) => a + b, 0) / blaineVals.length).toString() : '**';
+  const avgR45 = r45Vals.length > 0 ? (r45Vals.reduce((a, b) => a + b, 0) / r45Vals.length).toFixed(2).replace('.', ',') : '**';
+  const avgH2O = h2oVals.length > 0 ? (h2oVals.reduce((a, b) => a + b, 0) / h2oVals.length).toFixed(2).replace('.', ',') : '**';
+  const avgSO3 = so3Vals.length > 0 ? (so3Vals.reduce((a, b) => a + b, 0) / so3Vals.length).toFixed(2).replace('.', ',') : '**';
+  const avgTph = tphVals.length > 0 ? Math.round(tphVals.reduce((a, b) => a + b, 0) / tphVals.length).toString() : (mill.tphFeeding ? Math.round(mill.tphFeeding).toString() : '**');
+
+  // Active proportion details - Wajib %DRY bukan %WET (Poin 6)
+  const latestProp = mill.proporsiHistory && mill.proporsiHistory.length > 0 
+    ? mill.proporsiHistory[mill.proporsiHistory.length - 1] 
+    : null;
+
+  const m = latestProp?.materials;
+  const propParts: string[] = [];
+  if (m) {
+    if (m.clinker && m.clinker.dry > 0) {
+      const v = m.clinker.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% Clk`);
+    }
+    if (m.gypsum && m.gypsum.dry > 0) {
+      const v = m.gypsum.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% Gyp`);
+    }
+    if (m.limestone && m.limestone.dry > 0) {
+      const v = m.limestone.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% Lst`);
+    }
+    if (m.trass && m.trass.dry > 0) {
+      const v = m.trass.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% Trass`);
+    }
+    if (m.flyAsh && m.flyAsh.dry > 0) {
+      const v = m.flyAsh.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% FA`);
+    }
+  }
+
+  const propStr = propParts.length > 0 ? propParts.join(' + ') : '*74,0*% Clk + *4,0*% Gyp + *17,0*% Lst + *5,0*% Trass';
+  const admName = latestProp?.admixtureName || mill.admixtureName || 'CGA Sika';
+  const admPpm = latestProp?.admixturePpm || mill.admixturePpm || 400;
+
+  const header = `*${mill.millCode} ${mill.productType} ${mill.siloName}*`;
+
+  return `${header}
+Blaine : *${avgBlaine}* cm²/gr
+R45 : *${avgR45}*%
+H2O : *${avgH2O}*% 
+SO3 : *${avgSO3}*%
+TPH : *${avgTph}* t/h
+Proportion : ${propStr} *${admName} ${admPpm} PPM*`;
 }
 
 /**
- * Renders the block for a single mill in WhatsApp format
+ * Format Incoming Materials list without points or emojis
  */
-function renderMillBlock(prefix: string, title: string, mill: MillSessionData): string {
-  const blocks = computeMillProporsiAverages(mill);
-  const header = `⚙️ *${prefix}. ${title} - ${mill.productType} ${mill.siloName}*`;
-
-  const propLines = blocks.map(b => {
-    return `*Proporsi (${b.startHour} - ${b.endHour})*
-• Feeding: *${b.avgTph}* t/h
-• Blaine : *${b.avgBlaine}* cm²/gr
-• R45    : *${b.avgR45}*%
-• H2O    : *${b.avgH2O}*% 
-• SO3    : *${b.avgSO3}*%
-• Proporsi : *${b.proporsiSummary}*
-• Admixture: *${b.admixtureSummary}*`;
-  }).join('\n\n');
-
-  return `${header}\n\n${propLines}`;
-}
-
-/**
- * Format Incoming Materials list
- */
-function renderUnifiedIncomingMaterials(materials: UnifiedIncomingMaterial[]): string {
-  const lines: string[] = [];
+function renderCleanIncomingMaterials(materials: UnifiedIncomingMaterial[]): string {
+  const blocks: string[] = [];
 
   for (const m of materials) {
     const p = m.params;
 
     // Check if it's a simple percent / status item
     if (m.enabledParams.includes('valuePercent') && !m.enabledParams.includes('blaine') && !m.enabledParams.includes('c3s')) {
-      const valStr = p.valuePercent !== null && p.valuePercent !== undefined ? `${p.valuePercent}%` : (p.statusText || '**');
-      lines.push(`*${m.name}* : *${valStr}*`);
+      if (p.valuePercent !== null && p.valuePercent !== undefined) {
+        const valStr = p.valuePercent.toString().replace('.', ',');
+        blocks.push(`*${m.name}* : *${valStr}%*`);
+      } else if (p.statusText) {
+        blocks.push(`*${m.name}* : **% (${p.statusText})`);
+      } else {
+        blocks.push(`*${m.name}* : **%`);
+      }
     } else if (m.enabledParams.includes('blaine') || m.enabledParams.includes('r45')) {
-      const parts: string[] = [];
-      if (m.enabledParams.includes('blaine')) parts.push(`Blaine : *${fmtVal(p.blaine, 0)}* cm²/gr`);
-      if (m.enabledParams.includes('r45')) parts.push(`R45 : *${fmtVal(p.r45)}*%`);
-      if (m.enabledParams.includes('h2o')) parts.push(`H2O : *${fmtVal(p.h2o)}*%`);
-      if (m.enabledParams.includes('so3')) parts.push(`SO3 : *${fmtVal(p.so3)}*%`);
-
-      lines.push(`*${m.name}*\n• ${parts.join(' | ')}`);
+      const lines: string[] = [`*${m.name}*`];
+      lines.push(`Blaine : *${p.blaine !== null && p.blaine !== undefined ? Math.round(p.blaine).toString() : '**'}* cm²/gr`);
+      lines.push(`R45 : *${fmtNumComma(p.r45, 2)}*%`);
+      lines.push(`H2O : *${fmtNumComma(p.h2o, 2)}*%`);
+      if (m.enabledParams.includes('so3')) {
+        lines.push(`SO3 : *${fmtNumComma(p.so3, 2)}*%`);
+      }
+      blocks.push(lines.join('\n'));
     } else if (m.enabledParams.includes('c3s')) {
-      const parts: string[] = [];
-      if (m.enabledParams.includes('c3s')) parts.push(`C3S : *${fmtVal(p.c3s)}*%`);
-      if (m.enabledParams.includes('fcao')) parts.push(`F-CaO : *${fmtVal(p.fcao)}*%`);
-      if (m.enabledParams.includes('c3a')) parts.push(`C3A : *${fmtVal(p.c3a)}*%`);
-      if (m.enabledParams.includes('h2o')) parts.push(`H2O : *${fmtVal(p.h2o)}*%`);
-
-      lines.push(`*${m.name}*\n• ${parts.join(' | ')}`);
+      const lines: string[] = [`*${m.name}*`];
+      lines.push(`C3S : *${fmtNumComma(p.c3s, 2)}*%`);
+      lines.push(`F-CaO : *${fmtNumComma(p.fcao, 2)}*%`);
+      lines.push(`C3A : *${fmtNumComma(p.c3a, 2)}*%`);
+      lines.push(`H2O : *${fmtNumComma(p.h2o, 2)}*%`);
+      blocks.push(lines.join('\n'));
     } else {
-      const parts: string[] = [];
+      const lines: string[] = [`*${m.name}*`];
       m.enabledParams.forEach(paramKey => {
-        if (paramKey === 'statusText' && p.statusText) parts.push(`Status : *${p.statusText}*`);
-        else if (p[paramKey] !== undefined) parts.push(`${paramKey.toUpperCase()} : *${fmtVal(p[paramKey] as any)}*`);
+        if (paramKey === 'statusText' && p.statusText) {
+          lines.push(`Status : *${p.statusText}*`);
+        } else if (p[paramKey] !== undefined) {
+          lines.push(`${paramKey.toUpperCase()} : *${fmtNumComma(p[paramKey] as any, 2)}*%`);
+        }
       });
-      lines.push(`*${m.name}*\n• ${parts.join(' | ')}`);
+      blocks.push(lines.join('\n'));
     }
   }
 
-  return lines.join('\n\n');
+  return blocks.join('\n\n');
 }
 
 /**
- * Generate full Dual-Mill WhatsApp report
+ * Generate clean WhatsApp report:
+ * No emoji, no alphabetical index, comma decimals, clean equipment titles, dual CP, and analyst name at the end
  */
 export function generateWhatsAppReport(session: ShiftSession): string {
   const formattedDate = formatIndonesianDate(session.date);
 
-  const tmHasData = session.tm.isRunning || session.tm.hourlyRows.some(r => r.blaine !== null);
-  const vrmHasData = session.vrm.isRunning || session.vrm.hourlyRows.some(r => r.blaine !== null);
+  const sections: string[] = [];
 
-  const millSections: string[] = [];
+  // Top Title
+  sections.push(`*LAPORAN ${session.shiftName.toUpperCase()}*\n*${formattedDate}*`);
 
-  // Order priority: TM (Mill 1) first, then VRM (Mill 2)
-  if (tmHasData) {
-    millSections.push(renderMillBlock('A1', 'TM (MILL 1)', session.tm));
+  // Mill Sections (TM and/or VRM)
+  const tmActive = session.tm.isRunning || session.tm.hourlyRows.some(r => r.blaine !== null);
+  const vrmActive = session.vrm.isRunning || session.vrm.hourlyRows.some(r => r.blaine !== null);
+
+  if (vrmActive && !tmActive) {
+    sections.push(renderCleanMillBlock(session.vrm));
+  } else if (tmActive && !vrmActive) {
+    sections.push(renderCleanMillBlock(session.tm));
+  } else if (tmActive && vrmActive) {
+    // Both active: TM first, then VRM
+    sections.push(renderCleanMillBlock(session.tm));
+    sections.push(renderCleanMillBlock(session.vrm));
+  } else {
+    // Default fallback
+    sections.push(renderCleanMillBlock(session.tm));
   }
-  if (vrmHasData) {
-    millSections.push(renderMillBlock('A2', 'VRM (MILL 2)', session.vrm));
-  }
 
-  if (millSections.length === 0) {
-    millSections.push(renderMillBlock('A1', 'TM (MILL 1)', session.tm));
-  }
-
-  const sectionAContent = millSections.join('\n\n');
-
-  // Section B - Clinker WF
+  // Clinker WF
   const cWf = session.clinkerWf;
-  const sectionB = `⚖️ *B. CLINKER WF*
-• C3S   : *${fmtVal(cWf.c3s)}*%
-• F-CaO : *${fmtVal(cWf.fcao)}*%
-• C3A   : *${fmtVal(cWf.c3a)}*%
-• H2O   : *${fmtVal(cWf.h2o)}*%`;
+  sections.push(`*Clinker WF*
+C3S : *${fmtNumComma(cWf.c3s, 2)}*%
+F-CaO : *${fmtNumComma(cWf.fcao, 2)}*%
+C3A : *${fmtNumComma(cWf.c3a, 2)}*%
+H2O : *${fmtNumComma(cWf.h2o, 2)}*%`);
 
-  // Section C - Moisture Raw Material WF
+  // Moisture Raw Material WF
   const mWf = session.moistureWf;
-  const sectionC = `💧 *C. MOISTURE RAW MATERIAL WF*
-• Gypsum      : *${fmtVal(mWf.gypsum)}*%
-• Limestone   : *${fmtVal(mWf.limestone)}*% 
-• Trass       : *${fmtVal(mWf.trass)}*%
-• BB Konsumsi : *${fmtVal(mWf.bbKonsumsi)}*%`;
+  sections.push(`*Moisture Raw Material WF*
+Gypsum : *${fmtNumComma(mWf.gypsum, 1)}*%
+Limestone : *${fmtNumComma(mWf.limestone, 1)}*% 
+Trass : *${fmtNumComma(mWf.trass, 1)}*%
+BB konsumsi : *${fmtNumComma(mWf.bbKonsumsi, 1)}*%`);
 
-  // Section D - CP SHIFT SILO
-  const cp = session.cpShiftSilo;
-  const cpTitle = `CP ${session.shiftName} ${cp.siloName || 'SILO'}`;
-  const sectionD = `📦 *D. ${cpTitle.toUpperCase()}*
-• Blaine : *${fmtVal(cp.blaine, 0)}* cm²/gr
-• R45    : *${fmtVal(cp.r45)}*%
-• H2O    : *${fmtVal(cp.h2o)}*% 
-• SO3    : *${fmtVal(cp.so3)}*%`;
+  // CP Products (Accommodates 2 samples per shift)
+  const cpProducts = session.cpProducts || (session.cpShiftSilo ? [
+    {
+      id: 'cp_1',
+      label: 'CP Produk 1',
+      productType: session.tm.productType || 'PCC',
+      siloName: session.cpShiftSilo.siloName,
+      blaine: session.cpShiftSilo.blaine,
+      r45: session.cpShiftSilo.r45,
+      h2o: session.cpShiftSilo.h2o,
+      so3: session.cpShiftSilo.so3,
+    }
+  ] : []);
 
-  // Section E - Unified Incoming Raw Material
-  const incomingBody = renderUnifiedIncomingMaterials(session.incomingMaterials || []);
-  const sectionE = `🚚 *E. INCOMING RAW MATERIAL*\n${incomingBody}`;
+  for (const cp of cpProducts) {
+    if (cp && (cp.blaine !== null || cp.r45 !== null || cp.h2o !== null || cp.so3 !== null || cp.productType)) {
+      const blaineStr = cp.blaine !== null && cp.blaine !== undefined ? Math.round(cp.blaine).toString() : '**';
+      const r45Str = cp.r45 !== null && cp.r45 !== undefined ? cp.r45.toFixed(2).replace('.', ',') : '**';
+      const h2oStr = cp.h2o !== null && cp.h2o !== undefined ? cp.h2o.toFixed(2).replace('.', ',') : '**';
+      const so3Str = cp.so3 !== null && cp.so3 !== undefined ? cp.so3.toFixed(2).replace('.', ',') : '**';
+      
+      const prodName = (cp.productType || 'SEMEN').trim();
+      const siloName = (cp.siloName || '').trim();
+      
+      // If prodName already contains silo info (e.g. 'FLEXIPLUS SILO 4' or 'OPC SILO 2'), do not repeat silo
+      let title: string;
+      if (prodName.toUpperCase().includes('SILO')) {
+        title = `*CP ${session.shiftName.toUpperCase()} ${prodName.toUpperCase()}*`;
+      } else if (siloName) {
+        title = `*CP ${session.shiftName.toUpperCase()} ${prodName.toUpperCase()} ${siloName.toUpperCase()}*`;
+      } else {
+        title = `*CP ${session.shiftName.toUpperCase()} ${prodName.toUpperCase()}*`;
+      }
 
-  return `📋 *LAPORAN ANALISA PROSES QC*
-🏭 *Grinding Plant Ciwandan*
-📅 *${formattedDate}*
-🕒 *${session.shiftName}* (${session.shiftHours})
+      sections.push(`${title}
+Blaine : *${blaineStr}* cm²/gr
+R45 : *${r45Str}*%
+H2O : *${h2oStr}*% 
+SO3 : *${so3Str}*%`);
+    }
+  }
 
-${sectionAContent}
+  // Incoming Materials
+  if (session.incomingMaterials && session.incomingMaterials.length > 0) {
+    sections.push(renderCleanIncomingMaterials(session.incomingMaterials));
+  }
 
-${sectionB}
+  // Footer with on-duty Analyst Name
+  const analyst = session.analystName ? session.analystName.toUpperCase() : 'AHMAD RIFAI';
+  sections.push(`Terimakasih\n*${analyst}*`);
 
-${sectionC}
-
-${sectionD}
-
-${sectionE}
-
-Terimakasih`;
+  return sections.join('\n\n');
 }

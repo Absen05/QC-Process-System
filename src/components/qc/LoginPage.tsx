@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ShiftName, UserAccount } from '../../types/qc';
 import { SHIFT_DEFINITIONS } from '../../utils/qcCalculations';
-import { getStoredUsers } from '../../services/qcStorage';
+import { getStoredUsers, getStoredActiveSession } from '../../services/qcStorage';
 import { ShieldCheck, User, Lock, Calendar, Clock, LogIn, AlertCircle } from 'lucide-react';
 
 interface LoginPageProps {
@@ -9,11 +9,12 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+  const currentActive = getStoredActiveSession();
   const [selectedRole, setSelectedRole] = useState<'analyst' | 'supervisor'>('analyst');
   const [selectedUserName, setSelectedUserName] = useState<string>('AHMAD RIFAI');
   const [pin, setPin] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [selectedShift, setSelectedShift] = useState<ShiftName>('SHIFT 2');
+  const [selectedDate, setSelectedDate] = useState<string>(() => currentActive?.date || new Date().toISOString().slice(0, 10));
+  const [selectedShift, setSelectedShift] = useState<ShiftName>(() => currentActive?.shiftName || 'SHIFT 2');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const users = getStoredUsers();
@@ -170,40 +171,47 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
           </div>
 
-          {/* Shift & Date Selection */}
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200">
-            <div>
-              <label className="block text-slate-700 font-bold mb-1 text-[11px] flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                <span>Tanggal Shift</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full p-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono text-xs text-slate-900 font-bold focus:bg-white focus:outline-none"
-              />
-            </div>
+          {/* Shift & Date Selection - Khusus Analis Shift (Poin 2: SI tidak terikat shift) */}
+          {selectedRole === 'analyst' ? (
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 text-[11px] flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Tanggal Shift</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono text-xs text-slate-900 font-bold focus:bg-white focus:outline-none"
+                />
+              </div>
 
-            <div>
-              <label className="block text-slate-700 font-bold mb-1 text-[11px] flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-500" />
-                <span>Shift Kerja</span>
-              </label>
-              <select
-                value={selectedShift}
-                onChange={(e) => setSelectedShift(e.target.value as ShiftName)}
-                className="w-full p-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono text-xs text-slate-900 font-bold focus:bg-white focus:outline-none"
-              >
-                {Object.keys(SHIFT_DEFINITIONS).map(s => (
-                  <option key={s} value={s}>
-                    {s} ({SHIFT_DEFINITIONS[s as ShiftName].hours.length - 1} Jam)
-                  </option>
-                ))}
-              </select>
+              <div>
+                <label className="block text-slate-700 font-bold mb-1 text-[11px] flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Shift Kerja</span>
+                </label>
+                <select
+                  value={selectedShift}
+                  onChange={(e) => setSelectedShift(e.target.value as ShiftName)}
+                  className="w-full p-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono text-xs text-slate-900 font-bold focus:bg-white focus:outline-none"
+                >
+                  {Object.keys(SHIFT_DEFINITIONS).map(s => (
+                    <option key={s} value={s}>
+                      {s} ({SHIFT_DEFINITIONS[s as ShiftName].timeRange})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-[11px] flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Akun SI (Admin) tidak terikat shift harian. Anda akan langsung diarahkan ke Dashboard Pengelolaan Master Data & Riwayat.</span>
+            </div>
+          )}
 
           {/* Error Message */}
           {errorMessage && (

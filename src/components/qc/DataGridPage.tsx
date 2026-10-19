@@ -81,40 +81,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     }
   };
 
-  // Clinker WF handlers
-  const handleClinkerWfChange = (field: 'c3s' | 'fcao' | 'c3a' | 'h2o', val: string) => {
-    const parsed = val === '' ? null : parseFloat(val);
-    onUpdateSession({
-      ...session,
-      clinkerWf: {
-        ...session.clinkerWf,
-        [field]: isNaN(parsed as number) ? null : parsed,
-      },
-    });
-  };
 
-  // Moisture WF handlers
-  const handleMoistureWfChange = (field: 'gypsum' | 'limestone' | 'trass' | 'bbKonsumsi', val: string) => {
-    const parsed = val === '' ? null : parseFloat(val);
-    onUpdateSession({
-      ...session,
-      moistureWf: {
-        ...session.moistureWf,
-        [field]: isNaN(parsed as number) ? null : parsed,
-      },
-    });
-  };
-
-  // CP Shift handlers
-  const handleCpShiftChange = (field: 'siloName' | 'blaine' | 'r45' | 'h2o' | 'so3', val: string) => {
-    onUpdateSession({
-      ...session,
-      cpShiftSilo: {
-        ...session.cpShiftSilo,
-        [field]: field === 'siloName' ? val : (val === '' ? null : (isNaN(parseFloat(val)) ? null : parseFloat(val))),
-      },
-    });
-  };
 
   // Change Mill Product / Silo
   const handleMillSpecChange = (field: 'productType' | 'siloName', val: string) => {
@@ -401,207 +368,22 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
         </div>
       </div>
 
-      {/* Integrated Extra Sections (Clinker WF, Moisture WF, CP Shift Silo) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
-        {/* Clinker WF */}
-        <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-300">
-            <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-              ⚖️ B. Clinker WF
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">%</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">C3S (%)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.1"
-                placeholder="%"
-                value={session.clinkerWf.c3s !== null ? session.clinkerWf.c3s : ''}
-                onChange={(e) => handleClinkerWfChange('c3s', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">F-CaO (%)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="%"
-                value={session.clinkerWf.fcao !== null ? session.clinkerWf.fcao : ''}
-                onChange={(e) => handleClinkerWfChange('fcao', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">C3A (%)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="%"
-                value={session.clinkerWf.c3a !== null ? session.clinkerWf.c3a : ''}
-                onChange={(e) => handleClinkerWfChange('c3a', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">H2O (%)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="%"
-                value={session.clinkerWf.h2o !== null ? session.clinkerWf.h2o : ''}
-                onChange={(e) => handleClinkerWfChange('h2o', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-              />
-            </div>
-          </div>
+      {/* Clean Bottom Bar: Quick links to other specialized panels */}
+      <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="text-slate-600 font-mono">
+          Data input jam operasi {activeMillData.millCode} tersimpan otomatis ke sistem.
         </div>
 
-        {/* Moisture Raw Material WF */}
-        <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-300">
-            <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-              💧 C. Moisture Raw Material WF
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">%</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">Gypsum (%)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="%"
-                value={session.moistureWf.gypsum !== null ? session.moistureWf.gypsum : ''}
-                onChange={(e) => handleMoistureWfChange('gypsum', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">Limestone (%)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="%"
-                value={session.moistureWf.limestone !== null ? session.moistureWf.limestone : ''}
-                onChange={(e) => handleMoistureWfChange('limestone', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">Trass (%)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="%"
-                value={session.moistureWf.trass !== null ? session.moistureWf.trass : ''}
-                onChange={(e) => handleMoistureWfChange('trass', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">BB Konsumsi (%)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                placeholder="%"
-                value={session.moistureWf.bbKonsumsi !== null ? session.moistureWf.bbKonsumsi : ''}
-                onChange={(e) => handleMoistureWfChange('bbKonsumsi', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-              />
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigateToProporsi(activeMillTab)}
+            className="px-3 py-1.5 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+          >
+            <span>Kalkulasi Proporsi</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
-
-        {/* CP Shift Silo (Poin 4: Dropdown Silo 1-6 & 4+6) */}
-        <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-300">
-            <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-              📦 D. CP Shift ({session.shiftName})
-            </span>
-          </div>
-
-          <div className="space-y-2 text-xs">
-            <div>
-              <label className="block text-slate-600 mb-0.5 text-[11px]">Pilihan Silo</label>
-              <select
-                value={session.cpShiftSilo.siloName}
-                onChange={(e) => handleCpShiftChange('siloName', e.target.value)}
-                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono text-xs font-bold focus:bg-white focus:outline-none"
-              >
-                {DEFAULT_SILO_OPTIONS.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-slate-600 mb-0.5 text-[11px]">Blaine (cm²/gr)</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="1"
-                  placeholder="Blaine"
-                  value={session.cpShiftSilo.blaine !== null ? session.cpShiftSilo.blaine : ''}
-                  onChange={(e) => handleCpShiftChange('blaine', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-600 mb-0.5 text-[11px]">R45 (%)</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  placeholder="R45"
-                  value={session.cpShiftSilo.r45 !== null ? session.cpShiftSilo.r45 : ''}
-                  onChange={(e) => handleCpShiftChange('r45', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-slate-600 mb-0.5 text-[11px]">H2O (%)</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  placeholder="H2O"
-                  value={session.cpShiftSilo.h2o !== null ? session.cpShiftSilo.h2o : ''}
-                  onChange={(e) => handleCpShiftChange('h2o', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-600 mb-0.5 text-[11px]">SO3 (%)</label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  placeholder="SO3"
-                  value={session.cpShiftSilo.so3 !== null ? session.cpShiftSilo.so3 : ''}
-                  onChange={(e) => handleCpShiftChange('so3', e.target.value)}
-                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-400 rounded font-mono font-semibold focus:bg-white focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
     </div>

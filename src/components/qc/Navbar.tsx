@@ -11,13 +11,17 @@ import {
   Clock, 
   Calendar,
   History,
-  Lock
+  Lock,
+  Scale,
+  Package
 } from 'lucide-react';
 import { formatIndonesianDate } from '../../utils/qcCalculations';
 
+export type MainAppTab = 'grid' | 'proporsi' | 'data_wf' | 'data_cp' | 'materials' | 'report' | 'riwayat' | 'master';
+
 interface NavbarProps {
-  currentTab: 'grid' | 'proporsi' | 'materials' | 'report' | 'riwayat' | 'master';
-  onSelectTab: (tab: 'grid' | 'proporsi' | 'materials' | 'report' | 'riwayat' | 'master') => void;
+  currentTab: MainAppTab;
+  onSelectTab: (tab: MainAppTab) => void;
   currentUser: UserAccount;
   session: ShiftSession;
   onOpenShiftModal: () => void;
@@ -62,31 +66,38 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Active Shift & Dual-Mill Status (Clickable to switch shift) */}
-          <div 
-            onClick={onOpenShiftModal}
-            className="hidden md:flex items-center gap-2.5 px-3 py-1.5 bg-slate-900/90 hover:bg-black border border-slate-600 rounded-lg cursor-pointer transition-colors text-xs text-white shadow-xs"
-            title="Klik untuk mengubah shift atau konfigurasi Mill"
-          >
-            <div className="flex items-center gap-1.5 font-bold">
-              <Clock className="w-3.5 h-3.5 text-[#E31E24]" />
-              <span className="font-mono">{session.shiftName}</span>
-              <span className="text-slate-400 font-normal">({session.shiftHours})</span>
+          {/* Active Shift & Dual-Mill Status (Khusus Analis Shift) vs Status Audit (SI/Admin) */}
+          {!isSupervisor ? (
+            <div 
+              onClick={onOpenShiftModal}
+              className="hidden md:flex items-center gap-2.5 px-3 py-1.5 bg-slate-900/90 hover:bg-black border border-slate-600 rounded-lg cursor-pointer transition-colors text-xs text-white shadow-xs"
+              title="Klik untuk mengubah shift atau konfigurasi Mill"
+            >
+              <div className="flex items-center gap-1.5 font-bold">
+                <Clock className="w-3.5 h-3.5 text-[#E31E24]" />
+                <span className="font-mono">{session.shiftName}</span>
+                <span className="text-slate-400 font-normal">({session.shiftHours})</span>
+              </div>
+              <span className="text-slate-600">|</span>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  session.tm.isRunning ? 'bg-green-700 text-white' : 'bg-slate-700 text-slate-300'
+                }`}>
+                  TM {session.tm.isRunning ? 'ON' : 'OFF'}
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  session.vrm.isRunning ? 'bg-green-700 text-white' : 'bg-slate-700 text-slate-300'
+                }`}>
+                  VRM {session.vrm.isRunning ? 'ON' : 'OFF'}
+                </span>
+              </div>
             </div>
-            <span className="text-slate-600">|</span>
-            <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                session.tm.isRunning ? 'bg-green-700 text-white' : 'bg-slate-700 text-slate-300'
-              }`}>
-                TM {session.tm.isRunning ? 'ON' : 'OFF'}
-              </span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                session.vrm.isRunning ? 'bg-green-700 text-white' : 'bg-slate-700 text-slate-300'
-              }`}>
-                VRM {session.vrm.isRunning ? 'ON' : 'OFF'}
-              </span>
+          ) : (
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-amber-950/70 border border-amber-500/80 rounded-lg text-xs text-amber-300">
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+              <span className="font-bold tracking-wide">SI / SUPERVISOR AUDIT (NON-SHIFT)</span>
             </div>
-          </div>
+          )}
 
           {/* Flexible AI Action Button & User Profile */}
           <div className="flex items-center gap-2 shrink-0">
@@ -100,16 +111,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="whitespace-nowrap">Analisa AI</span>
             </button>
 
-            {/* Quick Shift Switch for mobile */}
-            <button
-              onClick={onOpenShiftModal}
-              className="md:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-slate-700 text-white rounded-lg"
-            >
-              <Clock className="w-3.5 h-3.5 text-[#E31E24]" />
-              <span>{session.shiftName}</span>
-            </button>
+            {/* Quick Shift Switch for mobile (Khusus Analis Shift) */}
+            {!isSupervisor && (
+              <button
+                onClick={onOpenShiftModal}
+                className="md:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-slate-700 text-white rounded-lg"
+              >
+                <Clock className="w-3.5 h-3.5 text-[#E31E24]" />
+                <span>{session.shiftName}</span>
+              </button>
+            )}
 
-            {/* User Profile & PIN Menu Button (Poin 2) */}
+            {/* User Profile & PIN Menu Button */}
             <button
               onClick={onOpenProfileModal}
               className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg transition-all shadow-xs ${
@@ -132,83 +145,127 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Navigation Tabs Bar (Solid background & buttons) */}
+      {/* Navigation Tabs Bar (Solid background & Role-Based Tabs Poin 1) */}
       <div className="border-t-2 border-slate-700 bg-slate-900">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 flex items-center justify-between overflow-x-auto">
           <nav className="flex space-x-1.5 py-1.5" aria-label="Tabs">
-            <button
-              onClick={() => onSelectTab('grid')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
-                currentTab === 'grid'
-                  ? 'bg-[#E31E24] text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Table className="w-4 h-4" />
-              <span>INPUT DATA</span>
-            </button>
+            {isSupervisor ? (
+              /* Khusus Dashboard SI (Admin) - HANYA MASTER DATA & RIWAYAT (Poin 1) */
+              <>
+                <button
+                  onClick={() => onSelectTab('master')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'master'
+                      ? 'bg-[#D97706] text-white shadow-sm'
+                      : 'text-amber-400 hover:text-amber-300 hover:bg-amber-950/60'
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>MASTER DATA</span>
+                </button>
 
-            <button
-              onClick={() => onSelectTab('proporsi')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
-                currentTab === 'proporsi'
-                  ? 'bg-[#E31E24] text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Sliders className="w-4 h-4" />
-              <span>PROPORSI</span>
-            </button>
+                <button
+                  onClick={() => onSelectTab('riwayat')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'riwayat'
+                      ? 'bg-[#0284C7] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <History className="w-4 h-4" />
+                  <span>RIWAYAT ARSIP SHIFT</span>
+                </button>
+              </>
+            ) : (
+              /* Khusus Akun Analis Shift - Akses Operasional Shift Penuh (Poin 1) */
+              <>
+                <button
+                  onClick={() => onSelectTab('grid')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'grid'
+                      ? 'bg-[#E31E24] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Table className="w-4 h-4" />
+                  <span>INPUT DATA</span>
+                </button>
 
-            <button
-              onClick={() => onSelectTab('materials')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
-                currentTab === 'materials'
-                  ? 'bg-[#E31E24] text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span>INCOMING</span>
-            </button>
+                <button
+                  onClick={() => onSelectTab('proporsi')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'proporsi'
+                      ? 'bg-[#E31E24] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Sliders className="w-4 h-4" />
+                  <span>PROPORSI</span>
+                </button>
 
-            <button
-              onClick={() => onSelectTab('report')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
-                currentTab === 'report'
-                  ? 'bg-[#16A34A] text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>LAPORAN WA</span>
-            </button>
+                {/* Panel Baru: DATA WF */}
+                <button
+                  onClick={() => onSelectTab('data_wf')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'data_wf'
+                      ? 'bg-[#0284C7] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Scale className="w-4 h-4" />
+                  <span>DATA WF</span>
+                </button>
 
-            {/* New Tab: RIWAYAT (Poin 3) */}
-            <button
-              onClick={() => onSelectTab('riwayat')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
-                currentTab === 'riwayat'
-                  ? 'bg-[#0284C7] text-white shadow-sm'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <History className="w-4 h-4" />
-              <span>RIWAYAT</span>
-            </button>
+                {/* Panel Baru: DATA CP */}
+                <button
+                  onClick={() => onSelectTab('data_cp')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'data_cp'
+                      ? 'bg-[#0284C7] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Package className="w-4 h-4" />
+                  <span>DATA CP</span>
+                </button>
 
-            {isSupervisor && (
-              <button
-                onClick={() => onSelectTab('master')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
-                  currentTab === 'master'
-                    ? 'bg-[#D97706] text-white shadow-sm'
-                    : 'text-amber-400 hover:text-amber-300 hover:bg-amber-950/60'
-                }`}
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>MASTER DATA</span>
-              </button>
+                <button
+                  onClick={() => onSelectTab('materials')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'materials'
+                      ? 'bg-[#E31E24] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />
+                  <span>INCOMING</span>
+                </button>
+
+                <button
+                  onClick={() => onSelectTab('report')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'report'
+                      ? 'bg-[#16A34A] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>LAPORAN WA</span>
+                </button>
+
+                {/* Tab: RIWAYAT untuk Analis Shift */}
+                <button
+                  onClick={() => onSelectTab('riwayat')}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'riwayat'
+                      ? 'bg-[#0284C7] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <History className="w-4 h-4" />
+                  <span>RIWAYAT</span>
+                </button>
+              </>
             )}
           </nav>
 
