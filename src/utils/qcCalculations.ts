@@ -308,7 +308,96 @@ function fmtNumComma(val: number | null | undefined, decimals = 2): string {
   return Number(val.toFixed(decimals)).toString().replace('.', ',');
 }
 
+function formatDryPropParts(materials: any, admixtureName?: string, admixturePpm?: number): string {
+  const propParts: string[] = [];
+  if (materials) {
+    if (materials.clinker && materials.clinker.dry > 0) {
+      const v = materials.clinker.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% Clk`);
+    }
+    if (materials.gypsum && materials.gypsum.dry > 0) {
+      const v = materials.gypsum.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% Gyp`);
+    }
+    if (materials.limestone && materials.limestone.dry > 0) {
+      const v = materials.limestone.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% Lst`);
+    }
+    if (materials.trass && materials.trass.dry > 0) {
+      const v = materials.trass.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% Trass`);
+    }
+    if (materials.flyAsh && (materials.flyAsh.dry > 0 || materials.flyAsh.dry === 0)) {
+      const v = materials.flyAsh.dry.toFixed(1).replace('.', ',');
+      propParts.push(`*${v}*% FA`);
+    }
+  }
+  const propStr = propParts.length > 0 ? propParts.join(' + ') : '*74,0*% Clk + *4,0*% Gyp + *17,0*% Lst + *5,0*% Trass';
+  const admName = admixtureName || 'CGA Sika';
+  const admPpm = admixturePpm || 400;
+  return `${propStr} *${admName} ${admPpm} PPM*`;
+}
+
 function renderCleanMillBlock(mill: MillSessionData): string {
+  const header = `*${mill.millCode} ${mill.productType} ${mill.siloName}*`;
+  const allRows = mill.hourlyRows;
+
+  // Pemisahan Draft Proporsi & Rata-rata Sesuai Jam (Poin 4: jika ada perubahan proporsi di tengah shift)
+  if (mill.proporsiHistory && mill.proporsiHistory.length > 1) {
+    const subBlocks: string[] = [];
+    const props = mill.proporsiHistory;
+
+    for (let i = 0; i < props.length; i++) {
+      const prop = props[i];
+      const startHour = prop.appliedAtHour || allRows[0]?.hour || '08:00';
+      const nextProp = props[i + 1];
+
+      // Tentukan rentang baris jam untuk proporsi ini
+      const startIdx = allRows.findIndex(r => r.hour === startHour);
+      let endIdx = allRows.length - 1;
+
+      if (nextProp && nextProp.appliedAtHour) {
+        const nextIdx = allRows.findIndex(r => r.hour === nextProp.appliedAtHour);
+        if (nextIdx > 0) {
+          endIdx = nextIdx - 1;
+        }
+      }
+
+      const effectiveStartIdx = startIdx !== -1 ? startIdx : 0;
+      const effectiveEndIdx = Math.max(effectiveStartIdx, endIdx);
+      const intervalRows = allRows.slice(effectiveStartIdx, effectiveEndIdx + 1);
+
+      if (intervalRows.length === 0) continue;
+
+      const firstH = intervalRows[0].hour;
+      const lastH = intervalRows[intervalRows.length - 1].hour;
+      const intervalLabel = `*(${firstH} - ${lastH})*`;
+
+      // Hitung rata-rata khusus pada rentang jam proporsi aktif ini
+      const blaineVals = intervalRows.map(r => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+      const r45Vals = intervalRows.map(r => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+      const h2oVals = intervalRows.map(r => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+      const so3Vals = intervalRows.map(r => r.so3).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+
+      const avgBlaine = blaineVals.length > 0 ? Math.round(blaineVals.reduce((a, b) => a + b, 0) / blaineVals.length).toString() : '**';
+      const avgR45 = r45Vals.length > 0 ? (r45Vals.reduce((a, b) => a + b, 0) / r45Vals.length).toFixed(2).replace('.', ',') : '**';
+      const avgH2O = h2oVals.length > 0 ? (h2oVals.reduce((a, b) => a + b, 0) / h2oVals.length).toFixed(2).replace('.', ',') : '**';
+      const avgSO3 = so3Vals.length > 0 ? (so3Vals.reduce((a, b) => a + b, 0) / so3Vals.length).toFixed(2).replace('.', ',') : '**';
+
+      const propStr = formatDryPropParts(prop.materials, prop.admixtureName || mill.admixtureName, prop.admixturePpm || mill.admixturePpm);
+
+      subBlocks.push(`${intervalLabel}
+Blaine : *${avgBlaine}* cm²/gr
+R45 : *${avgR45}*%
+H2O : *${avgH2O}*% 
+SO3 : *${avgSO3}*%
+Proportion : ${propStr}`);
+    }
+
+    return `${header}\n\n${subBlocks.join('\n\n')}`;
+  }
+
+  // Jika selama shift berjalan hanya ada 1 proporsi tanpa perubahan
   const blaineVals = mill.hourlyRows.map(r => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
   const r45Vals = mill.hourlyRows.map(r => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
   const h2oVals = mill.hourlyRows.map(r => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
@@ -321,41 +410,11 @@ function renderCleanMillBlock(mill: MillSessionData): string {
   const avgSO3 = so3Vals.length > 0 ? (so3Vals.reduce((a, b) => a + b, 0) / so3Vals.length).toFixed(2).replace('.', ',') : '**';
   const avgTph = tphVals.length > 0 ? Math.round(tphVals.reduce((a, b) => a + b, 0) / tphVals.length).toString() : (mill.tphFeeding ? Math.round(mill.tphFeeding).toString() : '**');
 
-  // Active proportion details - Wajib %DRY bukan %WET (Poin 6)
   const latestProp = mill.proporsiHistory && mill.proporsiHistory.length > 0 
     ? mill.proporsiHistory[mill.proporsiHistory.length - 1] 
     : null;
 
-  const m = latestProp?.materials;
-  const propParts: string[] = [];
-  if (m) {
-    if (m.clinker && m.clinker.dry > 0) {
-      const v = m.clinker.dry.toFixed(1).replace('.', ',');
-      propParts.push(`*${v}*% Clk`);
-    }
-    if (m.gypsum && m.gypsum.dry > 0) {
-      const v = m.gypsum.dry.toFixed(1).replace('.', ',');
-      propParts.push(`*${v}*% Gyp`);
-    }
-    if (m.limestone && m.limestone.dry > 0) {
-      const v = m.limestone.dry.toFixed(1).replace('.', ',');
-      propParts.push(`*${v}*% Lst`);
-    }
-    if (m.trass && m.trass.dry > 0) {
-      const v = m.trass.dry.toFixed(1).replace('.', ',');
-      propParts.push(`*${v}*% Trass`);
-    }
-    if (m.flyAsh && m.flyAsh.dry > 0) {
-      const v = m.flyAsh.dry.toFixed(1).replace('.', ',');
-      propParts.push(`*${v}*% FA`);
-    }
-  }
-
-  const propStr = propParts.length > 0 ? propParts.join(' + ') : '*74,0*% Clk + *4,0*% Gyp + *17,0*% Lst + *5,0*% Trass';
-  const admName = latestProp?.admixtureName || mill.admixtureName || 'CGA Sika';
-  const admPpm = latestProp?.admixturePpm || mill.admixturePpm || 400;
-
-  const header = `*${mill.millCode} ${mill.productType} ${mill.siloName}*`;
+  const propStr = formatDryPropParts(latestProp?.materials, latestProp?.admixtureName || mill.admixtureName, latestProp?.admixturePpm || mill.admixturePpm);
 
   return `${header}
 Blaine : *${avgBlaine}* cm²/gr
@@ -363,7 +422,7 @@ R45 : *${avgR45}*%
 H2O : *${avgH2O}*% 
 SO3 : *${avgSO3}*%
 TPH : *${avgTph}* t/h
-Proportion : ${propStr} *${admName} ${admPpm} PPM*`;
+Proportion : ${propStr}`;
 }
 
 /**
@@ -483,18 +542,8 @@ BB konsumsi : *${fmtNumComma(mWf.bbKonsumsi, 1)}*%`);
       const h2oStr = cp.h2o !== null && cp.h2o !== undefined ? cp.h2o.toFixed(2).replace('.', ',') : '**';
       const so3Str = cp.so3 !== null && cp.so3 !== undefined ? cp.so3.toFixed(2).replace('.', ',') : '**';
       
-      const prodName = (cp.productType || 'SEMEN').trim();
-      const siloName = (cp.siloName || '').trim();
-      
-      // If prodName already contains silo info (e.g. 'FLEXIPLUS SILO 4' or 'OPC SILO 2'), do not repeat silo
-      let title: string;
-      if (prodName.toUpperCase().includes('SILO')) {
-        title = `*CP ${session.shiftName.toUpperCase()} ${prodName.toUpperCase()}*`;
-      } else if (siloName) {
-        title = `*CP ${session.shiftName.toUpperCase()} ${prodName.toUpperCase()} ${siloName.toUpperCase()}*`;
-      } else {
-        title = `*CP ${session.shiftName.toUpperCase()} ${prodName.toUpperCase()}*`;
-      }
+      const manualName = (cp.productType || 'SEMEN').trim();
+      const title = `*CP ${session.shiftName.toUpperCase()} ${manualName.toUpperCase()}*`;
 
       sections.push(`${title}
 Blaine : *${blaineStr}* cm²/gr

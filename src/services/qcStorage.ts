@@ -356,6 +356,15 @@ export function getStoredActiveSession(): ShiftSession {
             },
           ];
         }
+        // Ensure hourly rows strictly match the shift definition's exact hours (Poin 1: Shift 2 wajib 8 baris 08:00 - 15:00)
+        const shiftDef = SHIFT_DEFINITIONS[parsed.shiftName as ShiftName] || SHIFT_DEFINITIONS['SHIFT 2'];
+        if (parsed.tm?.hourlyRows) {
+          parsed.tm.hourlyRows = parsed.tm.hourlyRows.filter((r: any) => shiftDef.hours.includes(r.hour));
+        }
+        if (parsed.vrm?.hourlyRows) {
+          parsed.vrm.hourlyRows = parsed.vrm.hourlyRows.filter((r: any) => shiftDef.hours.includes(r.hour));
+        }
+
         return parsed;
       }
     }
