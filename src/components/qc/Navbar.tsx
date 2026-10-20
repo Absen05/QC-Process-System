@@ -24,9 +24,10 @@ interface NavbarProps {
   onSelectTab: (tab: MainAppTab) => void;
   currentUser: UserAccount;
   session: ShiftSession;
-  onOpenShiftModal: () => void;
+  onOpenShiftModal?: () => void;
   onOpenAiModal: () => void;
   onOpenProfileModal: () => void;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,15 +35,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTab,
   currentUser,
   session,
-  onOpenShiftModal,
   onOpenAiModal,
   onOpenProfileModal,
+  onLogout,
 }) => {
   const isSupervisor = currentUser.role === 'supervisor';
 
   return (
     <header className="sticky top-0 z-30 bg-slate-800 border-b-2 border-slate-600 shadow-md">
-      {/* Top Bar: Brand, Dual-Mill Context, AI Trigger & User Profile */}
+      {/* Top Bar: Brand, Static Badges (Poin 5.1), AI Trigger & User Profile */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5">
         <div className="flex items-center justify-between gap-3">
           
@@ -66,40 +67,48 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Active Shift & Dual-Mill Status (Khusus Analis Shift) vs Status Audit (SI/Admin) */}
+          {/* Header Bersih & Statis (Read-Only) - Sesuai Poin 5.1 */}
           {!isSupervisor ? (
-            <div 
-              onClick={onOpenShiftModal}
-              className="hidden md:flex items-center gap-2.5 px-3 py-1.5 bg-slate-900/90 hover:bg-black border border-slate-600 rounded-lg cursor-pointer transition-colors text-xs text-white shadow-xs"
-              title="Klik untuk mengubah shift atau konfigurasi Mill"
-            >
-              <div className="flex items-center gap-1.5 font-bold">
+            <div className="hidden md:flex items-center gap-2">
+              {/* [ 🟢 VRM / TM AKTIF ] */}
+              {session.tm.isRunning && (
+                <div className="px-2.5 py-1.5 bg-emerald-950/80 border border-emerald-500 rounded-lg text-emerald-300 font-bold text-xs flex items-center gap-1.5 shadow-2xs select-none">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>TM AKTIF</span>
+                </div>
+              )}
+              {session.vrm.isRunning && (
+                <div className="px-2.5 py-1.5 bg-emerald-950/80 border border-emerald-500 rounded-lg text-emerald-300 font-bold text-xs flex items-center gap-1.5 shadow-2xs select-none">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>VRM AKTIF</span>
+                </div>
+              )}
+              {!session.tm.isRunning && !session.vrm.isRunning && (
+                <div className="px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-slate-400 font-bold text-xs select-none">
+                  STANDBY
+                </div>
+              )}
+
+              {/* [ 🕒 SHIFT 3 (16:00 - 24:00) ] */}
+              <div className="px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-white font-mono font-bold text-xs flex items-center gap-1.5 shadow-2xs select-none">
                 <Clock className="w-3.5 h-3.5 text-[#E31E24]" />
-                <span className="font-mono">{session.shiftName}</span>
-                <span className="text-slate-400 font-normal">({session.shiftHours})</span>
+                <span>{session.shiftName} ({session.shiftHours})</span>
               </div>
-              <span className="text-slate-600">|</span>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  session.tm.isRunning ? 'bg-green-700 text-white' : 'bg-slate-700 text-slate-300'
-                }`}>
-                  TM {session.tm.isRunning ? 'ON' : 'OFF'}
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  session.vrm.isRunning ? 'bg-green-700 text-white' : 'bg-slate-700 text-slate-300'
-                }`}>
-                  VRM {session.vrm.isRunning ? 'ON' : 'OFF'}
-                </span>
+
+              {/* [ 👤 AHMAD RIFAI ] */}
+              <div className="px-2.5 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-slate-200 font-mono font-bold text-xs flex items-center gap-1.5 shadow-2xs select-none">
+                <User className="w-3.5 h-3.5 text-sky-400" />
+                <span>{session.analystName}</span>
               </div>
             </div>
           ) : (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-amber-950/70 border border-amber-500/80 rounded-lg text-xs text-amber-300">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-amber-950/70 border border-amber-500/80 rounded-lg text-xs text-amber-300 select-none">
               <ShieldCheck className="w-4 h-4 text-amber-400" />
               <span className="font-bold tracking-wide">SI / SUPERVISOR AUDIT (NON-SHIFT)</span>
             </div>
           )}
 
-          {/* Flexible AI Action Button & User Profile */}
+          {/* AI Trigger & User / Logout Actions */}
           <div className="flex items-center gap-2 shrink-0">
             {/* ✨ Flexible AI Trigger Button */}
             <button
@@ -111,26 +120,23 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="whitespace-nowrap">Analisa AI</span>
             </button>
 
-            {/* Quick Shift Switch for mobile (Khusus Analis Shift) */}
+            {/* Mobile Statis Shift Badge */}
             {!isSupervisor && (
-              <button
-                onClick={onOpenShiftModal}
-                className="md:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-slate-700 text-white rounded-lg"
-              >
-                <Clock className="w-3.5 h-3.5 text-[#E31E24]" />
+              <div className="md:hidden flex items-center gap-1 px-2 py-1 text-xs font-mono font-bold bg-slate-900 border border-slate-600 text-white rounded-lg select-none">
+                <Clock className="w-3 h-3 text-[#E31E24]" />
                 <span>{session.shiftName}</span>
-              </button>
+              </div>
             )}
 
             {/* User Profile & PIN Menu Button */}
             <button
               onClick={onOpenProfileModal}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg transition-all shadow-xs ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition-all shadow-xs ${
                 isSupervisor
                   ? 'bg-[#D97706] hover:bg-amber-700 text-white border border-amber-500'
                   : 'bg-slate-700 hover:bg-slate-600 text-white border border-slate-500'
               }`}
-              title="Klik untuk membuka profil dan mengganti PIN 6 digit"
+              title="Buka Profil / Ganti PIN / Keluar"
             >
               <div className="w-5 h-5 rounded-full bg-black/20 flex items-center justify-center">
                 {isSupervisor ? <ShieldCheck className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
@@ -140,6 +146,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="text-[9px] text-slate-300 leading-none">Ubah PIN / Profil</div>
               </div>
             </button>
+
+            {/* Ganti Shift / Logout Resmi (Poin 5.1: Ganti shift hanya via keluar/logout resmi) */}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-red-200 bg-red-950/80 hover:bg-red-900 border border-red-700 rounded-lg transition-colors shadow-2xs"
+                title="Keluar akun dan pilih/ganti shift lain"
+              >
+                <span>Ganti Shift</span>
+              </button>
+            )}
           </div>
 
         </div>

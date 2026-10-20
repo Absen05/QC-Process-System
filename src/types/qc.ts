@@ -50,7 +50,6 @@ export const DEFAULT_SILO_OPTIONS = [
   'SILO 4',
   'SILO 5',
   'SILO 6',
-  'SILO 4+6',
 ] as const;
 
 export interface MaterialPropItem {
@@ -60,6 +59,7 @@ export interface MaterialPropItem {
   h2o: number;        // Moisture H2O %
   wetFactor: number;  // Dry / (1 - H2O/100)
   wet: number;        // Proportion % (calculated, sum to 100.0%)
+  wBasah?: number;    // W Basah Ton/Jam
 }
 
 export interface ProporsiConfig {
@@ -202,6 +202,7 @@ export interface ShiftSession {
 
   aiInsight?: string;
   aiInsightTimestamp?: string;
+  _serverUpdatedAt?: string;
 }
 
 export type MasterTargetDryMap = Record<

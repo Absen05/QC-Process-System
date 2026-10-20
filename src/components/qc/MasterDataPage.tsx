@@ -13,6 +13,7 @@ import {
   getStoredCgaSettings,
   saveStoredCgaSettings
 } from '../../services/qcStorage';
+import { saveCloudMasterTargets } from '../../services/qcApi';
 import { ShieldCheck, Save, RotateCcw, Check, Plus, Trash2, Key, Beaker, Sliders, Users, Layers, Download, X, Edit3, AlertTriangle } from 'lucide-react';
 
 interface MasterDataPageProps {
@@ -33,6 +34,8 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
   const [targets, setTargets] = useState<MasterTargetDryMap>(masterTargets);
   const [productList, setProductList] = useState<string[]>(() => getStoredProductList());
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showConfirmSaveTargetsModal, setShowConfirmSaveTargetsModal] = useState(false);
+  const [targetDrySuccessMessage, setTargetDrySuccessMessage] = useState<string | null>(null);
 
   // Quality Specs state
   const [qualitySpecs, setQualitySpecs] = useState<ProductQualitySpec[]>(() => getStoredQualitySpecs());
@@ -116,10 +119,21 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       }
     }
 
+    // Poin 5: Tampilkan pop-up dialog konfirmasi sebelum menyimpan
+    setShowConfirmSaveTargetsModal(true);
+  };
+
+  const handleConfirmExecuteSaveTargets = async () => {
     saveStoredMasterTargets(targets);
+    await saveCloudMasterTargets(targets);
     onUpdateMasterTargets(targets);
+    setShowConfirmSaveTargetsModal(false);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setTargetDrySuccessMessage('✅ Master Target Dry berhasil disimpan dan diperbarui!');
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 4500);
   };
 
   // Open Edit Modal for Target Dry (Poin 3)
@@ -159,7 +173,11 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     onUpdateMasterTargets(updatedTargets);
     setEditingDryProduct(null);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setTargetDrySuccessMessage('✅ Master Target Dry berhasil disimpan dan diperbarui!');
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 4500);
   };
 
   const handleConfirmDeleteDry = () => {
@@ -330,13 +348,18 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
           </p>
         </div>
 
-        {/* Global Save Indicator */}
-        {saveSuccess && (
+        {/* Notifikasi Toast / Alert Hijau: Poin 5 */}
+        {targetDrySuccessMessage ? (
+          <div className="px-4 py-2 bg-emerald-100 border-2 border-emerald-500 text-emerald-900 font-bold text-xs sm:text-sm rounded-lg flex items-center gap-2 shadow-sm animate-pulse">
+            <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{targetDrySuccessMessage}</span>
+          </div>
+        ) : saveSuccess ? (
           <div className="px-3 py-1.5 bg-green-100 border border-green-400 text-green-900 font-bold text-xs rounded-lg flex items-center gap-1.5 animate-pulse">
             <Check className="w-4 h-4" />
             <span>Perubahan Master Tersimpan!</span>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Sub-Tab Navigation inside Master Data (Solid buttons) */}
@@ -1578,6 +1601,65 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Modal: Pop-up Dialog Konfirmasi Simpan Master Target Dry (Poin 5) */}
+      {showConfirmSaveTargetsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border-2 border-slate-500 overflow-hidden">
+            <div className="bg-slate-800 px-5 py-4 border-b-2 border-slate-600 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-amber-400" />
+                <h3 className="text-sm font-bold uppercase tracking-wider">Konfirmasi Simpan Target Dry</h3>
+              </div>
+              <button 
+                onClick={() => setShowConfirmSaveTargetsModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs font-sans">
+              <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-900 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-sm font-semibold leading-relaxed">
+                  Apakah Anda yakin ingin memperbarui Master Target Dry ini?
+                </p>
+              </div>
+
+              <p className="text-slate-600 text-xs leading-relaxed">
+                Pembaruan ini akan disimpan ke database master pabrik dan otomatis menjadi standar acuan formulasi baru bagi operator CCR di Tube Mill (TM) dan Vertical Roller Mill (VRM).
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmSaveTargetsModal(false)}
+                  className="px-4 py-2 bg-[#334155] hover:bg-slate-800 text-white font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmExecuteSaveTargets}
+                  className="px-5 py-2 bg-[#16A34A] hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Ya, Simpan Master Target Dry</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Top-Right Toast Alert (Poin 5) */}
+      {targetDrySuccessMessage && (
+        <div className="fixed top-5 right-5 z-50 p-4 bg-emerald-600 text-white font-bold text-xs sm:text-sm rounded-xl shadow-2xl border-2 border-white flex items-center gap-3">
+          <Check className="w-5 h-5 shrink-0" />
+          <span>{targetDrySuccessMessage}</span>
         </div>
       )}
 

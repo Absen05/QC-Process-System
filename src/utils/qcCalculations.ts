@@ -60,8 +60,33 @@ export const SHIFT_DEFINITIONS: Record<ShiftName, ShiftDefinition> = {
   },
 };
 
+export interface WetBaseResult {
+  clinker: MaterialPropItem;
+  gypsum: MaterialPropItem;
+  limestone: MaterialPropItem;
+  trass: MaterialPropItem;
+  flyAsh: MaterialPropItem;
+  dryTotal: number;
+  wetTotal: number;
+  totalMassaBasah: number;
+  airMenguap: number;
+  isValidDry: boolean;
+  isValidWet: boolean;
+}
+
 /**
- * High-precision Wet Base calculation using Decimal.js
+ * Standard Cement Plant Wet Base calculation (Excel FM-CWQC-27 & Balancer 100%)
+ * Sesuai SOP QC Plant Ciwandan:
+ * 1. Formula W Basah:
+ *    W_Basah = %Dry / (1 - (Moist / 100))
+ *    Total_W_Basah = SUM(W_Basah material aktif)
+ *    %Wet_Kotor = (W_Basah / Total_W_Basah) * 100
+ * 2. Sistem Balancer:
+ *    - Produk PCC & SPK: %Wet untuk Clinker, Gypsum, Limestone, Fly Ash dibulatkan 1 desimal.
+ *      TRASS bertindak sebagai balancer: %Wet_TRASS = 100.0 - SUM(%Wet Clinker + Gypsum + Limestone + Fly Ash).
+ *    - Produk OPC (OPC G & OPC P): %Wet untuk Clinker & Gypsum dibulatkan 1 desimal.
+ *      LIMESTONE bertindak sebagai balancer: %Wet_LIMESTONE = 100.0 - SUM(%Wet Clinker + Gypsum).
+ *    - Footer %Wet terkunci mutlak di angka 100.0%.
  */
 export function calculateWetBase(
   materials: {
@@ -71,73 +96,96 @@ export function calculateWetBase(
     trass: { dry: number; h2o: number };
     flyAsh: { dry: number; h2o: number };
   },
-  bufferMaterial: 'trass' | 'clinker' = 'trass'
-): {
-  clinker: MaterialPropItem;
-  gypsum: MaterialPropItem;
-  limestone: MaterialPropItem;
-  trass: MaterialPropItem;
-  flyAsh: MaterialPropItem;
-  dryTotal: number;
-  wetTotal: number;
-  isValidDry: boolean;
-  isValidWet: boolean;
-} {
+  bufferMaterial: 'trass' | 'clinker' | 'limestone' = 'trass',
+  productType?: string
+): WetBaseResult {
   const keys = ['clinker', 'gypsum', 'limestone', 'trass', 'flyAsh'] as const;
-  
-  let sumWetFactor = new Decimal(0);
-  let sumDry = new Decimal(0);
 
-  const rawFactors: Record<string, Decimal> = {};
+  // 1. Rumus Dasar Setiap Material (FM-CWQC-27):
+  // W_Basah = %Dry / (1 - (Moist / 100))
+  // Total_W_Basah = SUM(W_Basah seluruh material aktif)
+  const rawWBasah: Record<string, number> = {};
+  let totalWBasah = 0;
+  let sumDry = 0;
 
   for (const key of keys) {
-    const dryDec = new Decimal(materials[key].dry || 0);
-    const h2oDec = new Decimal(materials[key].h2o || 0);
-    sumDry = sumDry.plus(dryDec);
+    const dry = Number(materials[key]?.dry) || 0;
+    const moist = Number(materials[key]?.h2o) || 0;
+    sumDry += dry;
 
-    if (dryDec.isZero()) {
-      rawFactors[key] = new Decimal(0);
+    if (dry > 0) {
+      const denom = 1 - (moist / 100);
+      const validDenom = denom > 0 ? denom : 1;
+      const w = dry / validDenom;
+      rawWBasah[key] = w;
+      totalWBasah += w;
     } else {
-      const denominator = new Decimal(1).minus(h2oDec.div(100));
-      if (denominator.isZero() || denominator.isNegative()) {
-        rawFactors[key] = dryDec;
-      } else {
-        const factor = dryDec.div(denominator);
-        rawFactors[key] = factor;
-        sumWetFactor = sumWetFactor.plus(factor);
-      }
+      rawWBasah[key] = 0;
     }
   }
 
-  const wetPercentages: Record<string, number> = {};
-  let preliminaryWetSum = new Decimal(0);
+  // Cek kategori produk: OPC (OPC G & OPC P) vs PCC & SPK
+  const isOpc = (productType && productType.toUpperCase().includes('OPC')) || 
+                (materials.trass.dry === 0 && materials.flyAsh.dry === 0 && materials.limestone.dry > 0);
 
+  // Aturan Balancer / Penampung Selisih Pembulatan:
+  // - Produk OPC (OPC G & OPC P): Material LIMESTONE adalah balancer mutlak
+  // - Produk PCC & SPK: Material TRASS adalah balancer mutlak
+  const balancer = isOpc
+    ? 'limestone'
+    : (materials.trass.dry > 0 ? 'trass' : (materials.limestone.dry > 0 ? 'limestone' : 'clinker'));
+
+  const wetMap: Record<string, number> = {
+    clinker: 0, gypsum: 0, limestone: 0, trass: 0, flyAsh: 0
+  };
+  const wBasahDisplay: Record<string, number> = {
+    clinker: 0, gypsum: 0, limestone: 0, trass: 0, flyAsh: 0
+  };
+
+  let sumNonBalancer = 0;
+
+  // Hitung %Wet_Murni = (W_Basah / Total_W_Basah) * 100
+  // Bulatkan material non-balancer ke 1 tempat desimal menggunakan Math.round(val * 10) / 10
   for (const key of keys) {
-    if (sumWetFactor.isZero() || rawFactors[key].isZero()) {
-      wetPercentages[key] = 0;
-    } else {
-      const prop = rawFactors[key].div(sumWetFactor).times(100);
-      const rounded = Number(prop.toFixed(1));
-      wetPercentages[key] = rounded;
-      preliminaryWetSum = preliminaryWetSum.plus(new Decimal(rounded));
+    const dry = Number(materials[key]?.dry) || 0;
+    const w = rawWBasah[key] || 0;
+    wBasahDisplay[key] = Number(w.toFixed(1));
+
+    if (dry <= 0) {
+      wetMap[key] = 0;
+      continue;
     }
+
+    if (key === balancer) {
+      continue;
+    }
+
+    const wetMurni = totalWBasah > 0 ? (w / totalWBasah) * 100 : 0;
+    const rounded = Math.round(wetMurni * 10) / 10;
+    wetMap[key] = rounded;
+    sumNonBalancer += rounded;
   }
 
-  // Adjust rounding remainder into buffer material for absolute 100.0%
-  const remainder = new Decimal(100.0).minus(preliminaryWetSum);
-  const targetBuffer = (bufferMaterial === 'trass' && materials.trass.dry > 0) ? 'trass' : 'clinker';
-
-  if (!remainder.isZero() && !sumWetFactor.isZero()) {
-    const currentBufferVal = new Decimal(wetPercentages[targetBuffer]);
-    wetPercentages[targetBuffer] = Number(currentBufferVal.plus(remainder).toFixed(1));
+  // Hitung Balancer dari sisa total:
+  // %Wet_TRASS = +(100.0 - (Clinker + Gypsum + Limestone + FlyAsh)).toFixed(1)
+  // %Wet_LIMESTONE = +(100.0 - (Clinker + Gypsum)).toFixed(1)
+  if (materials[balancer].dry > 0) {
+    wetMap[balancer] = +(100.0 - sumNonBalancer).toFixed(1);
+  } else {
+    wetMap[balancer] = 0;
   }
 
-  let finalWetSum = 0;
-  for (const key of keys) {
-    finalWetSum += wetPercentages[key];
-  }
-  finalWetSum = Number(finalWetSum.toFixed(1));
+  // Total %Wet terkunci mutlak di 100.0%
+  const finalWetTotal = +(
+    wetMap.clinker +
+    wetMap.gypsum +
+    wetMap.limestone +
+    wetMap.trass +
+    wetMap.flyAsh
+  ).toFixed(1);
 
+  const finalTotalWBasah = Number(totalWBasah.toFixed(1));
+  const airMenguap = Math.max(0, Number((totalWBasah - 100.0).toFixed(1)));
   const dryTotalNum = Number(sumDry.toFixed(1));
 
   return {
@@ -146,45 +194,52 @@ export function calculateWetBase(
       shortName: 'Clk',
       dry: materials.clinker.dry,
       h2o: materials.clinker.h2o,
-      wetFactor: Number(rawFactors.clinker.toFixed(4)),
-      wet: wetPercentages.clinker,
+      wetFactor: totalWBasah > 0 ? Number((rawWBasah.clinker / (materials.clinker.dry || 1)).toFixed(4)) : 1,
+      wet: wetMap.clinker,
+      wBasah: wBasahDisplay.clinker,
     },
     gypsum: {
       name: 'Gypsum',
       shortName: 'Gyp',
       dry: materials.gypsum.dry,
       h2o: materials.gypsum.h2o,
-      wetFactor: Number(rawFactors.gypsum.toFixed(4)),
-      wet: wetPercentages.gypsum,
+      wetFactor: totalWBasah > 0 ? Number((rawWBasah.gypsum / (materials.gypsum.dry || 1)).toFixed(4)) : 1,
+      wet: wetMap.gypsum,
+      wBasah: wBasahDisplay.gypsum,
     },
     limestone: {
       name: 'Limestone',
       shortName: 'Lst',
       dry: materials.limestone.dry,
       h2o: materials.limestone.h2o,
-      wetFactor: Number(rawFactors.limestone.toFixed(4)),
-      wet: wetPercentages.limestone,
+      wetFactor: totalWBasah > 0 ? Number((rawWBasah.limestone / (materials.limestone.dry || 1)).toFixed(4)) : 1,
+      wet: wetMap.limestone,
+      wBasah: wBasahDisplay.limestone,
     },
     trass: {
       name: 'Trass',
       shortName: 'Trass',
       dry: materials.trass.dry,
       h2o: materials.trass.h2o,
-      wetFactor: Number(rawFactors.trass.toFixed(4)),
-      wet: wetPercentages.trass,
+      wetFactor: totalWBasah > 0 ? Number((rawWBasah.trass / (materials.trass.dry || 1)).toFixed(4)) : 1,
+      wet: wetMap.trass,
+      wBasah: wBasahDisplay.trass,
     },
     flyAsh: {
       name: 'Fly Ash',
       shortName: 'Fly Ash',
       dry: materials.flyAsh.dry,
       h2o: materials.flyAsh.h2o,
-      wetFactor: Number(rawFactors.flyAsh.toFixed(4)),
-      wet: wetPercentages.flyAsh,
+      wetFactor: totalWBasah > 0 ? Number((rawWBasah.flyAsh / (materials.flyAsh.dry || 1)).toFixed(4)) : 1,
+      wet: wetMap.flyAsh,
+      wBasah: wBasahDisplay.flyAsh,
     },
     dryTotal: dryTotalNum,
-    wetTotal: finalWetSum,
+    wetTotal: finalWetTotal,
+    totalMassaBasah: finalTotalWBasah,
+    airMenguap,
     isValidDry: Math.abs(dryTotalNum - 100.0) < 0.05,
-    isValidWet: Math.abs(finalWetSum - 100.0) < 0.05,
+    isValidWet: Math.abs(finalWetTotal - 100.0) < 0.05,
   };
 }
 
@@ -265,9 +320,15 @@ export function computeMillProporsiAverages(mill: MillSessionData): ProporsiRepo
     const h2oVals = matchedRows.map(r => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
     const so3Vals = matchedRows.map(r => r.so3).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
 
-    // Point 6 Requirement: Use DRY proportions, NOT Wet Base!
+    // Point 6 Requirement: Use DRY proportions, NOT Wet Base! (Filter out 0% materials)
     const m = prop.materials;
-    const summary = `${m.clinker.dry.toFixed(1)}% Clk | ${m.gypsum.dry.toFixed(1)}% Gyp | ${m.limestone.dry.toFixed(1)}% Lst | ${m.trass.dry.toFixed(1)}% Trass | ${m.flyAsh.dry.toFixed(1)}% FA`;
+    const summaryParts: string[] = [];
+    if (m.clinker.dry > 0) summaryParts.push(`${m.clinker.dry.toFixed(1)}% Clk`);
+    if (m.gypsum.dry > 0) summaryParts.push(`${m.gypsum.dry.toFixed(1)}% Gyp`);
+    if (m.limestone.dry > 0) summaryParts.push(`${m.limestone.dry.toFixed(1)}% Lst`);
+    if (m.trass.dry > 0) summaryParts.push(`${m.trass.dry.toFixed(1)}% Trass`);
+    if (m.flyAsh.dry > 0) summaryParts.push(`${m.flyAsh.dry.toFixed(1)}% FA`);
+    const summary = summaryParts.join(' | ');
 
     blocks.push({
       proporsiId: prop.id,
@@ -301,6 +362,25 @@ export function formatIndonesianDate(dateString: string): string {
   }
 }
 
+export function formatIndonesianDateTitleCase(dateString?: string): string {
+  try {
+    const months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    if (!dateString) {
+      const now = new Date();
+      return `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+    }
+    const [year, month, day] = dateString.split('-').map(Number);
+    if (!year || !month || !day) return dateString;
+    return `${day} ${months[month - 1]} ${year}`;
+  } catch {
+    return dateString || '';
+  }
+}
+
+
 function fmtNumComma(val: number | null | undefined, decimals = 2): string {
   if (val === null || val === undefined || isNaN(val)) {
     return '**';
@@ -327,7 +407,7 @@ function formatDryPropParts(materials: any, admixtureName?: string, admixturePpm
       const v = materials.trass.dry.toFixed(1).replace('.', ',');
       propParts.push(`*${v}*% Trass`);
     }
-    if (materials.flyAsh && (materials.flyAsh.dry > 0 || materials.flyAsh.dry === 0)) {
+    if (materials.flyAsh && materials.flyAsh.dry > 0) {
       const v = materials.flyAsh.dry.toFixed(1).replace('.', ',');
       propParts.push(`*${v}*% FA`);
     }
@@ -564,3 +644,62 @@ SO3 : *${so3Str}*%`);
 
   return sections.join('\n\n');
 }
+
+/**
+ * Poin 1.3: Quality Warning jika produk adalah OPC dan Limestone (%Dry) > 5.0%
+ */
+export function checkOpcLimestoneWarning(productType: string, limestoneDry: number): {
+  hasWarning: boolean;
+  message: string;
+} {
+  const isOpc = productType.toUpperCase().includes('OPC');
+  if (isOpc && limestoneDry > 5.0) {
+    return {
+      hasWarning: true,
+      message: `Peringatan Komposisi OPC: Kandungan Limestone (${limestoneDry.toFixed(1)}%) > 5.0% (potensi reklasifikasi produk non-OPC).`,
+    };
+  }
+  return { hasWarning: false, message: '' };
+}
+
+/**
+ * Poin 4: Auto-detect time & restriksi login shift
+ * Validasi rentang waktu login:
+ * - Shift 1 (00:00 - 08:00): Aktif pada rentang 23:00 - 08:30 WIB
+ * - Shift 2 (08:00 - 16:00): Aktif pada rentang 07:00 - 16:30 WIB
+ * - Shift 3 (16:00 - 24:00): Aktif pada rentang 15:00 - 00:30 WIB
+ * - Shift AM 1 / AM 2: Aktif pada rentang 07:00 - 20:30 WIB
+ * - Shift PM 1 / PM 2: Aktif pada rentang 19:00 - 08:30 WIB
+ */
+export function isShiftAllowedNow(shiftName: ShiftName, date: Date = new Date()): boolean {
+  const totalMins = date.getHours() * 60 + date.getMinutes();
+
+  switch (shiftName) {
+    case 'SHIFT 1':
+      return totalMins >= 1380 || totalMins <= 510; // 23:00 s/d 08:30
+    case 'SHIFT 2':
+      return totalMins >= 420 && totalMins <= 990;  // 07:00 s/d 16:30
+    case 'SHIFT 3':
+      return totalMins >= 900 || totalMins <= 30;   // 15:00 s/d 00:30
+    case 'AM 1':
+    case 'AM 2':
+      return totalMins >= 420 && totalMins <= 1230; // 07:00 s/d 20:30
+    case 'PM 1':
+    case 'PM 2':
+      return totalMins >= 1140 || totalMins <= 510; // 19:00 s/d 08:30
+    default:
+      return true;
+  }
+}
+
+export function getAutoRecommendedShift(date: Date = new Date()): ShiftName {
+  const totalMins = date.getHours() * 60 + date.getMinutes();
+  if (totalMins >= 420 && totalMins < 900) {
+    return 'SHIFT 2';
+  }
+  if (totalMins >= 900 && totalMins < 1380) {
+    return 'SHIFT 3';
+  }
+  return 'SHIFT 1';
+}
+

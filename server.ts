@@ -67,6 +67,233 @@ Gunakan gaya bahasa praktisi QC semen yang lugas, faktual, dan solutif tanpa bas
   }
 });
 
+// ==========================================
+// CLOUD DATABASE PERSISTENCE (Poin 2 & 3)
+// Sinkronisasi data real-time lintas device (PC & HP)
+// ==========================================
+import fs from 'fs';
+
+const DATA_DIR = path.resolve(__dirname, 'data');
+const SESSIONS_FILE = path.resolve(DATA_DIR, 'qc_sessions.json');
+
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function readAllSessions(): Record<string, any> {
+  try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+      const raw = fs.readFileSync(SESSIONS_FILE, 'utf-8');
+      return JSON.parse(raw) || {};
+    }
+  } catch (err) {
+    console.error('Error reading sessions file:', err);
+  }
+  return {};
+}
+
+function writeAllSessions(data: Record<string, any>): void {
+  try {
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error writing sessions file:', err);
+  }
+}
+
+// 1. GET active session by { tanggal, shift }
+app.get('/api/qc/session', (req, res) => {
+  try {
+    const { date, shift } = req.query as { date?: string; shift?: string };
+    const sessions = readAllSessions();
+
+    if (!date || !shift) {
+      // Return latest saved session
+      const keys = Object.keys(sessions);
+      if (keys.length > 0) {
+        const latestKey = keys[keys.length - 1];
+        return res.json({ session: sessions[latestKey], found: true, key: latestKey });
+      }
+      return res.json({ session: null, found: false });
+    }
+
+    const key = `${date}_${shift}`;
+    if (sessions[key]) {
+      return res.json({ session: sessions[key], found: true, key });
+    }
+
+    // If session for this exact shift not found, find latest prior session for carry-over estafet (Poin 3)
+    const allKeys = Object.keys(sessions).sort();
+    let priorSession: any = null;
+    if (allKeys.length > 0) {
+      priorSession = sessions[allKeys[allKeys.length - 1]];
+    }
+
+    return res.json({ session: null, found: false, priorSession });
+  } catch (error: any) {
+    console.error('Error fetching session:', error);
+    return res.status(500).json({ error: 'Failed to fetch session' });
+  }
+});
+
+// 2. POST / UPSERT entire active session
+app.post('/api/qc/session', (req, res) => {
+  try {
+    const { session } = req.body;
+    if (!session || !session.date || !session.shiftName) {
+      return res.status(400).json({ error: 'Invalid session payload' });
+    }
+
+    const sessions = readAllSessions();
+    const key = `${session.date}_${session.shiftName}`;
+    sessions[key] = {
+      ...session,
+      _serverUpdatedAt: new Date().toISOString(),
+    };
+
+    writeAllSessions(sessions);
+    return res.json({ success: true, key, updatedAt: sessions[key]._serverUpdatedAt });
+  } catch (error: any) {
+    console.error('Error saving session:', error);
+    return res.status(500).json({ error: 'Failed to save session' });
+  }
+});
+
+// 3. POST / UPSERT specific cell or row with composite key { tanggal, shift, mill_type, jam_analisa } (Poin 2)
+app.post('/api/qc/upsert-cell', (req, res) => {
+  try {
+    const { tanggal, shift, mill_type, jam_analisa, field, value, fullRow } = req.body;
+    if (!tanggal || !shift || !mill_type || !jam_analisa) {
+      return res.status(400).json({ error: 'Composite key { tanggal, shift, mill_type, jam_analisa } required' });
+    }
+
+    const sessions = readAllSessions();
+    const key = `${tanggal}_${shift}`;
+    let session = sessions[key];
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found for upsert' });
+    }
+
+    const targetMill = mill_type === 'TM' ? session.tm : session.vrm;
+    if (!targetMill || !targetMill.hourlyRows) {
+      return res.status(400).json({ error: 'Invalid mill target' });
+    }
+
+    let rowIndex = targetMill.hourlyRows.findIndex((r: any) => r.hour === jam_analisa);
+    if (rowIndex === -1) {
+      targetMill.hourlyRows.push({
+        hour: jam_analisa,
+        blaine: null,
+        residuR45: null,
+        moistureH2O: null,
+        so3: null,
+        freelimeFCaO: null,
+        tph: null,
+        proporsiDisplay: '',
+        admixtureDisplay: '',
+      });
+      rowIndex = targetMill.hourlyRows.length - 1;
+    }
+
+    if (fullRow) {
+      targetMill.hourlyRows[rowIndex] = { ...targetMill.hourlyRows[rowIndex], ...fullRow };
+    } else if (field) {
+      targetMill.hourlyRows[rowIndex][field] = value;
+    }
+
+    session._serverUpdatedAt = new Date().toISOString();
+    sessions[key] = session;
+    writeAllSessions(sessions);
+
+    return res.json({ 
+      success: true, 
+      updatedRow: targetMill.hourlyRows[rowIndex],
+      key 
+    });
+  } catch (error: any) {
+    console.error('Error upserting cell:', error);
+    return res.status(500).json({ error: 'Failed to upsert cell' });
+  }
+});
+
+// 4. GET latest active proportion across all sessions for carry-over estafet (Poin 3)
+app.get('/api/qc/proporsi/latest', (req, res) => {
+  try {
+    const { mill } = req.query as { mill?: 'TM' | 'VRM' };
+    const targetMillCode = mill || 'TM';
+    const sessions = readAllSessions();
+    const allKeys = Object.keys(sessions).sort().reverse();
+
+    for (const k of allKeys) {
+      const s = sessions[k];
+      const m = targetMillCode === 'TM' ? s.tm : s.vrm;
+      if (m && m.proporsiHistory && m.proporsiHistory.length > 0) {
+        const latestProp = m.proporsiHistory[m.proporsiHistory.length - 1];
+        return res.json({ 
+          found: true, 
+          sourceDate: s.date, 
+          sourceShift: s.shiftName, 
+          proporsi: latestProp,
+          millData: {
+            productType: m.productType,
+            siloName: m.siloName,
+            tphFeeding: m.tphFeeding,
+            admixtureName: m.admixtureName,
+            admixturePpm: m.admixturePpm,
+          }
+        });
+      }
+    }
+
+    return res.json({ found: false });
+  } catch (error: any) {
+    console.error('Error fetching latest proporsi:', error);
+    return res.status(500).json({ error: 'Failed to fetch latest proporsi' });
+  }
+});
+
+// 5. GET all sessions for Audit / Riwayat
+app.get('/api/qc/all-sessions', (_req, res) => {
+  try {
+    const sessions = readAllSessions();
+    return res.json({ sessions });
+  } catch (error: any) {
+    console.error('Error fetching all sessions:', error);
+    return res.status(500).json({ error: 'Failed to fetch all sessions' });
+  }
+});
+
+// 6. Master Target Dry endpoints (Poin 5)
+const MASTER_TARGETS_FILE = path.join(DATA_DIR, 'master_targets.json');
+
+app.get('/api/qc/master-targets', (_req, res) => {
+  try {
+    if (fs.existsSync(MASTER_TARGETS_FILE)) {
+      const raw = fs.readFileSync(MASTER_TARGETS_FILE, 'utf-8');
+      return res.json({ targets: JSON.parse(raw), found: true });
+    }
+    return res.json({ targets: null, found: false });
+  } catch (error: any) {
+    console.error('Error reading master targets:', error);
+    return res.status(500).json({ error: 'Failed to load master targets' });
+  }
+});
+
+app.post('/api/qc/master-targets', (req, res) => {
+  try {
+    const { targets } = req.body;
+    if (!targets) {
+      return res.status(400).json({ error: 'Missing targets payload' });
+    }
+    fs.writeFileSync(MASTER_TARGETS_FILE, JSON.stringify(targets, null, 2), 'utf-8');
+    return res.json({ success: true, savedAt: new Date().toISOString() });
+  } catch (error: any) {
+    console.error('Error saving master targets:', error);
+    return res.status(500).json({ error: 'Failed to save master targets' });
+  }
+});
+
 // Setup Vite middlewares in development or static serve in production
 async function startServer() {
   // Serve public static assets (such as logo)

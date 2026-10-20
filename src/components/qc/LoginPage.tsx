@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShiftName, UserAccount } from '../../types/qc';
-import { SHIFT_DEFINITIONS } from '../../utils/qcCalculations';
+import { SHIFT_DEFINITIONS, isShiftAllowedNow, getAutoRecommendedShift } from '../../utils/qcCalculations';
 import { getStoredUsers, getStoredActiveSession } from '../../services/qcStorage';
 import { ShieldCheck, User, Lock, Calendar, Clock, LogIn, AlertCircle } from 'lucide-react';
 
@@ -10,11 +10,17 @@ interface LoginPageProps {
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const currentActive = getStoredActiveSession();
+  const autoShift = getAutoRecommendedShift();
   const [selectedRole, setSelectedRole] = useState<'analyst' | 'supervisor'>('analyst');
   const [selectedUserName, setSelectedUserName] = useState<string>('AHMAD RIFAI');
   const [pin, setPin] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(() => currentActive?.date || new Date().toISOString().slice(0, 10));
-  const [selectedShift, setSelectedShift] = useState<ShiftName>(() => currentActive?.shiftName || 'SHIFT 2');
+  const [selectedShift, setSelectedShift] = useState<ShiftName>(() => {
+    if (currentActive?.shiftName && isShiftAllowedNow(currentActive.shiftName)) {
+      return currentActive.shiftName;
+    }
+    return autoShift;
+  });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const users = getStoredUsers();
@@ -49,6 +55,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (targetUser.pin !== pin) {
       const defaultHint = targetUser.role === 'supervisor' ? '123456' : '456789';
       setErrorMessage(`PIN yang Anda masukkan salah. (PIN default: ${defaultHint}). Hubungi SI jika lupa PIN.`);
+      return;
+    }
+
+    // Poin 4: Restriksi login shift berdasarkan jam berjalan
+    if (selectedRole === 'analyst' && !isShiftAllowedNow(selectedShift)) {
+      setErrorMessage('Waktu kerja belum memasuki periode shift ini.');
       return;
     }
 
@@ -189,20 +201,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1 text-[11px] flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Shift Kerja</span>
+                <label className="block text-slate-700 font-bold mb-1 text-[11px] flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Shift Kerja</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-mono font-semibold">
+                    Rekomendasi: {autoShift}
+                  </span>
                 </label>
                 <select
                   value={selectedShift}
                   onChange={(e) => setSelectedShift(e.target.value as ShiftName)}
                   className="w-full p-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono text-xs text-slate-900 font-bold focus:bg-white focus:outline-none"
                 >
-                  {Object.keys(SHIFT_DEFINITIONS).map(s => (
-                    <option key={s} value={s}>
-                      {s} ({SHIFT_DEFINITIONS[s as ShiftName].timeRange})
-                    </option>
-                  ))}
+                  {Object.keys(SHIFT_DEFINITIONS).map(s => {
+                    const shiftName = s as ShiftName;
+                    const allowed = isShiftAllowedNow(shiftName);
+                    return (
+                      <option 
+                        key={s} 
+                        value={s}
+                        disabled={!allowed}
+                        className={!allowed ? 'text-slate-400 bg-slate-100' : 'text-slate-900 font-bold'}
+                      >
+                        {s} ({SHIFT_DEFINITIONS[shiftName].timeRange}) {!allowed ? '— [Di luar jam operasional]' : '— [Aktif]'}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>

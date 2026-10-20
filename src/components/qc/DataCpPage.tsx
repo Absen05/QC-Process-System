@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShiftSession, DEFAULT_SILO_OPTIONS, CpProductSample } from '../../types/qc';
+import { ShiftSession, CpProductSample } from '../../types/qc';
 import { getStoredProductList } from '../../services/qcStorage';
 import { Package, Check, Layers, AlertCircle } from 'lucide-react';
 
@@ -155,46 +155,38 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
                 </button>
               </div>
 
-              {/* Product and Silo Selector */}
+              {/* Product and Silo Pure Free-Text Inputs (Poin 3) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 text-[11px]">
-                    Jenis Produk (Input Manual Bebas)
+                    Jenis Produk CP (Input Bebas)
                   </label>
                   <input
                     type="text"
-                    placeholder="misal: FLEXIPLUS SILO 4+6, PCC SILO 2, OPC G..."
+                    placeholder="misal: PCC Flexiplus, OPC G, SPK..."
                     value={cp.productType}
                     onChange={(e) => handleUpdateCp(idx as 0 | 1, 'productType', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
                   />
-                  <div className="flex flex-wrap gap-1 mt-1 text-[10px]">
-                    {['FLEXIPLUS SILO 4+6', 'PCC SILO 2', 'OPC G', 'PCC Plus FA'].map(preset => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => handleUpdateCp(idx as 0 | 1, 'productType', preset)}
-                        className="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded text-slate-700 font-semibold cursor-pointer"
-                      >
-                        {preset}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    Ketik manual nama produk yang diproduksi
+                  </span>
                 </div>
 
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 text-[11px]">
-                    Pilihan Silo
+                    Lokasi Silo (Input Bebas)
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    placeholder="misal: Silo 1, Silo 2, Silo 3..."
                     value={cp.siloName}
                     onChange={(e) => handleUpdateCp(idx as 0 | 1, 'siloName', e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none"
-                  >
-                    {DEFAULT_SILO_OPTIONS.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">
+                    Ketik manual nomor silo penampungan
+                  </span>
                 </div>
               </div>
 

@@ -200,7 +200,7 @@ export const DEFAULT_MOISTURE_WF: MoistureRawMaterialWf = {
 };
 
 export const DEFAULT_CP_SHIFT_SILO: CpShiftSilo = {
-  siloName: 'SILO 4+6',
+  siloName: 'SILO 2',
   blaine: null,
   r45: null,
   h2o: null,

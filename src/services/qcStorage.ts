@@ -358,12 +358,28 @@ export function getStoredActiveSession(): ShiftSession {
         }
         // Ensure hourly rows strictly match the shift definition's exact hours (Poin 1: Shift 2 wajib 8 baris 08:00 - 15:00)
         const shiftDef = SHIFT_DEFINITIONS[parsed.shiftName as ShiftName] || SHIFT_DEFINITIONS['SHIFT 2'];
-        if (parsed.tm?.hourlyRows) {
-          parsed.tm.hourlyRows = parsed.tm.hourlyRows.filter((r: any) => shiftDef.hours.includes(r.hour));
-        }
-        if (parsed.vrm?.hourlyRows) {
-          parsed.vrm.hourlyRows = parsed.vrm.hourlyRows.filter((r: any) => shiftDef.hours.includes(r.hour));
-        }
+        const alignHours = (mill: any) => {
+          if (!mill) return;
+          const currentRows: any[] = Array.isArray(mill.hourlyRows) ? mill.hourlyRows : [];
+          mill.hourlyRows = shiftDef.hours.map((hour: string) => {
+            const found = currentRows.find((r: any) => r.hour === hour);
+            if (found) return found;
+            return {
+              hour,
+              blaine: null,
+              residuR45: null,
+              moistureH2O: null,
+              so3: null,
+              freelimeFCaO: null,
+              tph: null,
+              proporsiDisplay: '',
+              admixtureDisplay: '',
+              notes: undefined,
+            };
+          });
+        };
+        alignHours(parsed.tm);
+        alignHours(parsed.vrm);
 
         return parsed;
       }
@@ -442,6 +458,9 @@ export function resumeLatestActiveStateForUser(
   }
 
   current.analystName = userName;
+  if (targetDate && targetShift && (current.date !== targetDate || current.shiftName !== targetShift)) {
+    return switchOrStartShift(targetDate, targetShift, userName);
+  }
   saveStoredActiveSession(current);
   return current;
 }
@@ -451,7 +470,7 @@ export function resumeLatestActiveStateForUser(
  * 1. Archives current active shift
  * 2. Checks if the target date+shift has an existing archive (to resume)
  * 3. If no archive exists, carries forward all active proportions, incoming configurations,
- *    and mill settings while resetting hourly rows for the fresh shift.
+ *    and mill settings while resetting hourly rows for the fresh shift (Poin 3: Estafet Proporsi).
  */
 export function switchOrStartShift(
   targetDate: string,
@@ -485,22 +504,105 @@ export function switchOrStartShift(
     return resumed;
   }
 
-  // 3. Create fresh shift but preserve incoming materials & active proportions from latest session
+  // 3. Create fresh shift with ESTAFET PROPORSI (Poin 3)
   const current = getStoredActiveSession();
   const freshSession = createInitialShiftSession(targetShift, targetDate, analystName);
-  
+  const shiftDef = SHIFT_DEFINITIONS[targetShift] || SHIFT_DEFINITIONS['SHIFT 2'];
+  const startHour = shiftDef.hours[0];
+  const endHour = shiftDef.hours[shiftDef.hours.length - 1];
+
+  // Estafet Proporsi TM (Mill 1)
   freshSession.tm.isRunning = tmRunning;
-  freshSession.tm.productType = tmProduct;
-  freshSession.tm.siloName = tmSilo;
-  if (current?.tm?.proporsiHistory?.length > 0) {
-    freshSession.tm.proporsiHistory = [...current.tm.proporsiHistory];
+  const latestTmProp = current?.tm?.proporsiHistory?.[current.tm.proporsiHistory.length - 1];
+  if (latestTmProp) {
+    const tmSummaryParts: string[] = [];
+    if (latestTmProp.materials.clinker.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.clinker.dry}% Clk`);
+    if (latestTmProp.materials.gypsum.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.gypsum.dry}% Gyp`);
+    if (latestTmProp.materials.limestone.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.limestone.dry}% Lst`);
+    if (latestTmProp.materials.trass.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.trass.dry}% Trass`);
+    if (latestTmProp.materials.flyAsh.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.flyAsh.dry}% FA`);
+    const tmPropSummary = tmSummaryParts.join(' | ');
+    const tmAdmSummary = `${latestTmProp.admixtureName} ${latestTmProp.admixturePpm} PPM`;
+
+    const carriedTmProp = {
+      ...latestTmProp,
+      id: `prop_tm_init_${Date.now()}`,
+      versionNumber: 1,
+      label: `Proporsi 1 (${startHour} - ${endHour})`,
+      appliedAtHour: startHour,
+      endAtHour: endHour,
+      savedAt: new Date().toISOString(),
+    };
+
+    freshSession.tm.productType = latestTmProp.productType || tmProduct;
+    freshSession.tm.siloName = latestTmProp.siloName || tmSilo;
+    freshSession.tm.tphFeeding = latestTmProp.tphFeeding || 100.0;
+    freshSession.tm.admixtureName = latestTmProp.admixtureName;
+    freshSession.tm.admixturePpm = latestTmProp.admixturePpm;
+    freshSession.tm.proporsiHistory = [carriedTmProp];
+    freshSession.tm.hourlyRows = shiftDef.hours.map(hour => ({
+      hour,
+      blaine: null,
+      residuR45: null,
+      moistureH2O: null,
+      so3: null,
+      freelimeFCaO: null,
+      tph: latestTmProp.tphFeeding || 100.0,
+      proporsiVersionId: carriedTmProp.id,
+      proporsiDisplay: tmPropSummary,
+      admixtureDisplay: tmAdmSummary,
+      notes: undefined,
+    }));
+  } else {
+    freshSession.tm.productType = tmProduct;
+    freshSession.tm.siloName = tmSilo;
   }
 
+  // Estafet Proporsi VRM (Mill 2)
   freshSession.vrm.isRunning = vrmRunning;
-  freshSession.vrm.productType = vrmProduct;
-  freshSession.vrm.siloName = vrmSilo;
-  if (current?.vrm?.proporsiHistory?.length > 0) {
-    freshSession.vrm.proporsiHistory = [...current.vrm.proporsiHistory];
+  const latestVrmProp = current?.vrm?.proporsiHistory?.[current.vrm.proporsiHistory.length - 1];
+  if (latestVrmProp) {
+    const vrmSummaryParts: string[] = [];
+    if (latestVrmProp.materials.clinker.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.clinker.dry}% Clk`);
+    if (latestVrmProp.materials.gypsum.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.gypsum.dry}% Gyp`);
+    if (latestVrmProp.materials.limestone.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.limestone.dry}% Lst`);
+    if (latestVrmProp.materials.trass.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.trass.dry}% Trass`);
+    if (latestVrmProp.materials.flyAsh.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.flyAsh.dry}% FA`);
+    const vrmPropSummary = vrmSummaryParts.join(' | ');
+    const vrmAdmSummary = `${latestVrmProp.admixtureName} ${latestVrmProp.admixturePpm} PPM`;
+
+    const carriedVrmProp = {
+      ...latestVrmProp,
+      id: `prop_vrm_init_${Date.now()}`,
+      versionNumber: 1,
+      label: `Proporsi 1 (${startHour} - ${endHour})`,
+      appliedAtHour: startHour,
+      endAtHour: endHour,
+      savedAt: new Date().toISOString(),
+    };
+
+    freshSession.vrm.productType = latestVrmProp.productType || vrmProduct;
+    freshSession.vrm.siloName = latestVrmProp.siloName || vrmSilo;
+    freshSession.vrm.tphFeeding = latestVrmProp.tphFeeding || 100.0;
+    freshSession.vrm.admixtureName = latestVrmProp.admixtureName;
+    freshSession.vrm.admixturePpm = latestVrmProp.admixturePpm;
+    freshSession.vrm.proporsiHistory = [carriedVrmProp];
+    freshSession.vrm.hourlyRows = shiftDef.hours.map(hour => ({
+      hour,
+      blaine: null,
+      residuR45: null,
+      moistureH2O: null,
+      so3: null,
+      freelimeFCaO: null,
+      tph: latestVrmProp.tphFeeding || 100.0,
+      proporsiVersionId: carriedVrmProp.id,
+      proporsiDisplay: vrmPropSummary,
+      admixtureDisplay: vrmAdmSummary,
+      notes: undefined,
+    }));
+  } else {
+    freshSession.vrm.productType = vrmProduct;
+    freshSession.vrm.siloName = vrmSilo;
   }
 
   // Carry forward incoming materials and CP product configurations

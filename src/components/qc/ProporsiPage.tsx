@@ -8,9 +8,10 @@ import {
   MillSessionData,
   DEFAULT_SILO_OPTIONS
 } from '../../types/qc';
-import { calculateWetBase } from '../../utils/qcCalculations';
+import { calculateWetBase, checkOpcLimestoneWarning, formatIndonesianDateTitleCase } from '../../utils/qcCalculations';
 import { renderCcrImage, dataUrlToBlob } from '../../utils/ccrCanvasRenderer';
 import { getStoredProductList } from '../../services/qcStorage';
+import { saveCloudSession } from '../../services/qcApi';
 import { 
   Camera, 
   Save, 
@@ -18,10 +19,13 @@ import {
   Copy, 
   Download, 
   Clock, 
+  Calendar,
   Factory, 
   Check, 
   X,
-  Sliders
+  Sliders,
+  AlertCircle,
+  AlertTriangle
 } from 'lucide-react';
 
 interface ProporsiPageProps {
@@ -50,7 +54,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   const [tphCapacity, setTphCapacity] = useState<number>(currentMillData.tphFeeding || 100.0);
   const [admixtureName, setAdmixtureName] = useState<string>(currentMillData.admixtureName);
   const [admixturePpm, setAdmixturePpm] = useState<number>(currentMillData.admixturePpm);
-  const [bufferMaterial, setBufferMaterial] = useState<'trass' | 'clinker'>('trass');
+  const [bufferMaterial, setBufferMaterial] = useState<'trass' | 'clinker' | 'limestone'>('trass');
 
   // Applied starting hour
   const [appliedHour, setAppliedHour] = useState<string>(() => {
@@ -82,11 +86,17 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         trass: latestProp.materials.trass.h2o,
         flyAsh: latestProp.materials.flyAsh.h2o,
       });
+      if (latestProp.materials.trass.dry === 0 && latestProp.materials.limestone.dry > 0) {
+        setBufferMaterial('limestone');
+      }
     } else {
       const std = masterTargets[selectedMillCode === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)']?.[mill.productType] || {
         clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
       };
       setDryValues({ ...std });
+      if (std.trass === 0 && std.limestone > 0) {
+        setBufferMaterial('limestone');
+      }
     }
   }, [selectedMillCode]);
 
@@ -94,12 +104,29 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
   };
 
+  // Real-time Clock for Header and CCR Card (Poin 2)
+  const [currentClock, setCurrentClock] = useState(() => {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+    return `${formatIndonesianDateTitleCase(session.date)}, ${timeStr} WIB`;
+  });
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+      setCurrentClock(`${formatIndonesianDateTitleCase(session.date)}, ${timeStr} WIB`);
+    };
+    const timer = setInterval(updateTime, 5000);
+    return () => clearInterval(timer);
+  }, [session.date]);
+
   const [dryValues, setDryValues] = useState<{
-    clinker: number;
-    gypsum: number;
-    limestone: number;
-    trass: number;
-    flyAsh: number;
+    clinker: number | '';
+    gypsum: number | '';
+    limestone: number | '';
+    trass: number | '';
+    flyAsh: number | '';
   }>(() => {
     const latestProp = currentMillData.proporsiHistory[currentMillData.proporsiHistory.length - 1];
     if (latestProp && latestProp.productType === currentMillData.productType) {
@@ -115,15 +142,15 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   });
 
   const [h2oValues, setH2oValues] = useState<{
-    clinker: number;
-    gypsum: number;
-    limestone: number;
-    trass: number;
-    flyAsh: number;
+    clinker: number | '';
+    gypsum: number | '';
+    limestone: number | '';
+    trass: number | '';
+    flyAsh: number | '';
   }>({
-    clinker: session.clinkerWf.h2o || 0.12,
-    gypsum: session.moistureWf.gypsum || 4.25,
-    limestone: session.moistureWf.limestone || 1.85,
+    clinker: session.clinkerWf.h2o || 0.0,
+    gypsum: session.moistureWf.gypsum || 2.8,
+    limestone: session.moistureWf.limestone || 7.2,
     trass: session.moistureWf.trass || 4.80,
     flyAsh: 0.30,
   });
@@ -134,40 +161,43 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   const [copySuccess, setCopySuccess] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
-  // Live calculation of Wet Base
+  // Live calculation of Wet Base dengan formula standar pabrik FM-CWQC-27 & Balancer (Poin 1)
   const calculation = calculateWetBase({
-    clinker: { dry: dryValues.clinker, h2o: h2oValues.clinker },
-    gypsum: { dry: dryValues.gypsum, h2o: h2oValues.gypsum },
-    limestone: { dry: dryValues.limestone, h2o: h2oValues.limestone },
-    trass: { dry: dryValues.trass, h2o: h2oValues.trass },
-    flyAsh: { dry: dryValues.flyAsh, h2o: h2oValues.flyAsh },
-  }, bufferMaterial);
+    clinker: { dry: typeof dryValues.clinker === 'number' ? dryValues.clinker : 0, h2o: typeof h2oValues.clinker === 'number' ? h2oValues.clinker : 0 },
+    gypsum: { dry: typeof dryValues.gypsum === 'number' ? dryValues.gypsum : 0, h2o: typeof h2oValues.gypsum === 'number' ? h2oValues.gypsum : 0 },
+    limestone: { dry: typeof dryValues.limestone === 'number' ? dryValues.limestone : 0, h2o: typeof h2oValues.limestone === 'number' ? h2oValues.limestone : 0 },
+    trass: { dry: typeof dryValues.trass === 'number' ? dryValues.trass : 0, h2o: typeof h2oValues.trass === 'number' ? h2oValues.trass : 0 },
+    flyAsh: { dry: typeof dryValues.flyAsh === 'number' ? dryValues.flyAsh : 0, h2o: typeof h2oValues.flyAsh === 'number' ? h2oValues.flyAsh : 0 },
+  }, bufferMaterial, productType);
+
+  // Quality Warning untuk produk OPC jika Limestone (%Dry) > 5.0% (Poin 1.3)
+  const opcLimestoneDry = typeof dryValues.limestone === 'number' ? dryValues.limestone : 0;
+  const opcWarning = checkOpcLimestoneWarning(productType, opcLimestoneDry);
 
   // Calculate W Basah Ton/Jam items for live UI display (scaled with TPH if specified)
   const scaleFactor = tphCapacity > 0 ? (tphCapacity / 100.0) : 1.0;
 
+  // Poin 1 Perbaikan Wajib: SEMUA baris material (Clinker, Gypsum, Limestone, Trass, Fly Ash) TIDAK BOLEH HILANG di tabel form input!
   const materialsList = [
-    { key: 'clinker' as const, label: 'CLINKER', item: calculation.clinker },
+    { key: 'clinker' as const, label: 'CLINKER', item: calculation.clinker, isBuffer: bufferMaterial === 'clinker' },
     { key: 'gypsum' as const, label: 'GYPSUM', item: calculation.gypsum },
-    { key: 'limestone' as const, label: 'LIMESTONE', item: calculation.limestone },
-    { key: 'trass' as const, label: 'TRASS', item: calculation.trass, isBuffer: bufferMaterial === 'trass' },
+    { key: 'limestone' as const, label: 'LIMESTONE', item: calculation.limestone, isBuffer: calculation.limestone.dry > 0 && (calculation.trass.dry === 0 || bufferMaterial === 'limestone') },
+    { key: 'trass' as const, label: 'TRASS', item: calculation.trass, isBuffer: calculation.trass.dry > 0 && bufferMaterial === 'trass' },
     { key: 'flyAsh' as const, label: 'FLY ASH', item: calculation.flyAsh },
   ];
 
-  let sumWBasah = 0;
   const itemsWithWBasah = materialsList.map(m => {
-    const dry = m.item.dry;
-    const h2o = m.item.h2o;
-    const wBasah = dry > 0 ? (dry / (1 - (h2o / 100))) * scaleFactor : 0;
-    sumWBasah += wBasah;
+    const rawW = m.item.wBasah ?? 0;
+    const wBasahScaled = Number((rawW * scaleFactor).toFixed(1));
     return {
       ...m,
-      wBasah: Number(wBasah.toFixed(2))
+      wBasah: wBasahScaled
     };
   });
 
-  const totalWBasahFormatted = sumWBasah.toFixed(2);
-  const airMenguapFormatted = Math.max(0, sumWBasah - (100.0 * scaleFactor)).toFixed(2);
+  // Format angka konsisten 1 desimal
+  const totalWBasahFormatted = (calculation.totalMassaBasah * scaleFactor).toFixed(1);
+  const airMenguapFormatted = (calculation.airMenguap * scaleFactor).toFixed(1);
 
   const isOverride = 
     dryValues.clinker !== defaultStandard.clinker ||
@@ -182,6 +212,11 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
     };
     setDryValues({ ...standard });
+    if (standard.trass === 0 && standard.limestone > 0) {
+      setBufferMaterial('limestone');
+    } else if (standard.trass > 0) {
+      setBufferMaterial('trass');
+    }
   };
 
   const handleResetToStandard = () => {
@@ -192,13 +227,21 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   };
 
   const handleDryChange = (key: 'clinker' | 'gypsum' | 'limestone' | 'trass' | 'flyAsh', val: string) => {
+    if (val === '') {
+      setDryValues(prev => ({ ...prev, [key]: '' }));
+      return;
+    }
     const num = parseFloat(val);
-    setDryValues(prev => ({ ...prev, [key]: isNaN(num) ? 0 : num }));
+    setDryValues(prev => ({ ...prev, [key]: isNaN(num) ? '' : num }));
   };
 
   const handleH2oChange = (key: 'clinker' | 'gypsum' | 'limestone' | 'trass' | 'flyAsh', val: string) => {
+    if (val === '') {
+      setH2oValues(prev => ({ ...prev, [key]: '' }));
+      return;
+    }
     const num = parseFloat(val);
-    setH2oValues(prev => ({ ...prev, [key]: isNaN(num) ? 0 : num }));
+    setH2oValues(prev => ({ ...prev, [key]: isNaN(num) ? '' : num }));
   };
 
   // Save & Activate specifically to the selected mill
@@ -250,8 +293,14 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     const appliedIndex = currentMillData.hourlyRows.findIndex(r => r.hour === appliedHour);
     const startIdx = appliedIndex !== -1 ? appliedIndex : 0;
 
-    // Display summary with DRY values on grid as per Point 6
-    const propSummary = `${calculation.clinker.dry}% Clk | ${calculation.gypsum.dry}% Gyp | ${calculation.limestone.dry}% Lst | ${calculation.trass.dry}% Trass | ${calculation.flyAsh.dry}% FA`;
+    // Display summary with DRY values on grid as per Point 6 (Filter material non-aktif 0%)
+    const propSummaryParts: string[] = [];
+    if (calculation.clinker.dry > 0) propSummaryParts.push(`${calculation.clinker.dry}% Clk`);
+    if (calculation.gypsum.dry > 0) propSummaryParts.push(`${calculation.gypsum.dry}% Gyp`);
+    if (calculation.limestone.dry > 0) propSummaryParts.push(`${calculation.limestone.dry}% Lst`);
+    if (calculation.trass.dry > 0) propSummaryParts.push(`${calculation.trass.dry}% Trass`);
+    if (calculation.flyAsh.dry > 0) propSummaryParts.push(`${calculation.flyAsh.dry}% FA`);
+    const propSummary = propSummaryParts.join(' | ');
     const admSummary = `${admixtureName} ${admixturePpm} PPM`;
 
     const updatedRows = currentMillData.hourlyRows.map((row, idx) => {
@@ -278,10 +327,13 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       proporsiHistory: updatedHistory,
     };
 
-    onUpdateSession({
+    const updatedSession: ShiftSession = {
       ...session,
       [selectedMillCode === 'TM' ? 'tm' : 'vrm']: updatedMillData,
-    });
+    };
+
+    onUpdateSession(updatedSession);
+    saveCloudSession(updatedSession);
 
     alert(`✅ Proporsi baru untuk ${selectedMillCode} [${newPropLabel}] berhasil diaktifkan mulai jam ${appliedHour}!`);
   };
@@ -306,6 +358,9 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         materials: calculation,
         dryTotal: calculation.dryTotal,
         wetTotal: calculation.wetTotal,
+        totalMassaBasah: Number((calculation.totalMassaBasah * scaleFactor).toFixed(1)),
+        airMenguap: Number((calculation.airMenguap * scaleFactor).toFixed(1)),
+        opcWarning: opcWarning.hasWarning ? opcWarning.message : undefined,
       });
 
       setGeneratedImageUrl(dataUrl);
@@ -344,7 +399,23 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     <div className="space-y-4 font-sans">
 
       {/* Target Mill & Product Controls Bar */}
-      <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
+      <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm space-y-3">
+        
+        {/* Real-time Date and Time Header Badge (Poin 2: DD MMMM YYYY, HH:mm WIB) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-slate-800 text-white font-mono font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs">
+              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+              <span>Tanggal & Jam Berlaku: <strong className="text-amber-300 font-bold">{currentClock}</strong></span>
+            </span>
+          </div>
+          <div className="text-slate-600 text-xs font-mono flex items-center gap-2">
+            <span>Shift: <strong className="text-slate-900">{session.shiftName}</strong></span>
+            <span>•</span>
+            <span>Analis: <strong className="text-slate-900">{session.analystName || 'Analis'}</strong></span>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
           {/* Dual-Mill Switcher for Setting Proporsi */}
@@ -418,10 +489,11 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               <span className="text-[11px] font-bold text-slate-600">Buffer:</span>
               <select
                 value={bufferMaterial}
-                onChange={(e) => setBufferMaterial(e.target.value as 'trass' | 'clinker')}
+                onChange={(e) => setBufferMaterial(e.target.value as 'trass' | 'clinker' | 'limestone')}
                 className="bg-transparent font-bold text-xs focus:outline-none text-slate-900 cursor-pointer"
               >
                 <option value="trass">Trass</option>
+                <option value="limestone">Limestone</option>
                 <option value="clinker">Clinker</option>
               </select>
             </div>
@@ -445,6 +517,16 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         </div>
       </div>
 
+      {/* Quality Warning for OPC: Kandungan Limestone > 5.0% (Poin 1.3) */}
+      {opcWarning.hasWarning && (
+        <div className="p-3 bg-red-50 border-2 border-red-300 rounded-xl text-red-900 flex items-start gap-2.5 text-xs font-semibold shadow-xs">
+          <AlertCircle className="w-4 h-4 text-[#E31E24] shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold text-red-700">Peringatan Komposisi OPC:</span> {opcWarning.message}
+          </div>
+        </div>
+      )}
+
       {/* Main Calculation & Setpoint Feeder Card (100% Mirroring CCR Image Reference) */}
       <div className="bg-white border-2 border-slate-500 rounded-xl shadow-sm overflow-hidden">
         
@@ -461,6 +543,10 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <span className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-slate-200 border border-slate-400 text-slate-800 font-mono font-bold text-xs rounded-md shadow-2xs">
+              <Clock className="w-3.5 h-3.5 text-slate-600" />
+              <span>{currentClock}</span>
+            </span>
             <span className="px-3 py-1 bg-red-100 border border-red-300 text-[#E31E24] font-bold text-xs rounded-md uppercase tracking-wider">
               WET BASE
             </span>
@@ -491,6 +577,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-300">
               
+              {/* Poin 1 Perbaikan Wajib: Form Setting Proporsi menampilkan SEMUA baris material (tidak boleh hilang jika 0 / dihapus) */}
               {itemsWithWBasah.map((m) => (
                 <tr key={m.key} className="hover:bg-slate-50 transition-colors">
                   {/* Material Name */}
@@ -505,13 +592,14 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                     </div>
                   </td>
 
-                  {/* %DRY Editable Input */}
+                  {/* %DRY Editable Input - Bebas dikosongkan/diisi 0 tanpa menghilangkan baris */}
                   <td className="p-0 border-r border-slate-300 bg-amber-50/20">
                     <input
                       type="number"
                       inputMode="decimal"
                       step="0.1"
-                      value={dryValues[m.key]}
+                      placeholder="0.0"
+                      value={dryValues[m.key] !== undefined && dryValues[m.key] !== null ? dryValues[m.key] : ''}
                       onChange={(e) => handleDryChange(m.key, e.target.value)}
                       className="w-full px-2.5 py-2 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
                     />
@@ -522,16 +610,17 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                     <input
                       type="number"
                       inputMode="decimal"
-                      step="0.01"
-                      value={h2oValues[m.key]}
+                      step="0.1"
+                      placeholder="0.0"
+                      value={h2oValues[m.key] !== undefined && h2oValues[m.key] !== null ? h2oValues[m.key] : ''}
                       onChange={(e) => handleH2oChange(m.key, e.target.value)}
                       className="w-full px-2.5 py-2 text-right font-mono font-medium text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
                     />
                   </td>
 
-                  {/* W BASAH = %Dry / (1 - (Moist / 100)) */}
+                  {/* W BASAH = konsisten 1 angka desimal (Poin 3) */}
                   <td className="py-2 px-3 border-r border-slate-300 text-right font-bold text-slate-900">
-                    {m.wBasah.toFixed(2)}
+                    {m.wBasah.toFixed(1)}
                   </td>
 
                   {/* %WET Badge */}
@@ -700,10 +789,22 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                     )}
                   </div>
                   <div className="font-mono text-slate-700 text-[11px] mt-0.5">
-                    Target Dry: {m.clinker.dry}% Clk | {m.gypsum.dry}% Gyp | {m.limestone.dry}% Lst | {m.trass.dry}% Trass | {m.flyAsh.dry}% FA
+                    Target Dry: {[
+                      m.clinker.dry > 0 && `${m.clinker.dry}% Clk`,
+                      m.gypsum.dry > 0 && `${m.gypsum.dry}% Gyp`,
+                      m.limestone.dry > 0 && `${m.limestone.dry}% Lst`,
+                      m.trass.dry > 0 && `${m.trass.dry}% Trass`,
+                      m.flyAsh.dry > 0 && `${m.flyAsh.dry}% FA`,
+                    ].filter(Boolean).join(' | ')}
                   </div>
                   <div className="font-mono text-slate-500 text-[10px]">
-                    Wet Base CCR: {m.clinker.wet}% Clk | {m.gypsum.wet}% Gyp | {m.limestone.wet}% Lst | {m.trass.wet}% Trass | {m.flyAsh.wet}% FA
+                    Wet Base CCR: {[
+                      m.clinker.dry > 0 && `${m.clinker.wet}% Clk`,
+                      m.gypsum.dry > 0 && `${m.gypsum.wet}% Gyp`,
+                      m.limestone.dry > 0 && `${m.limestone.wet}% Lst`,
+                      m.trass.dry > 0 && `${m.trass.wet}% Trass`,
+                      m.flyAsh.dry > 0 && `${m.flyAsh.wet}% FA`,
+                    ].filter(Boolean).join(' | ')}
                   </div>
                 </div>
                 <div className="text-slate-600 font-mono text-[11px]">

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ShiftName, ShiftSession } from '../../types/qc';
 import { SHIFT_DEFINITIONS, generateWhatsAppReport, formatIndonesianDate } from '../../utils/qcCalculations';
 import { getArchivedShift, getStoredArchives } from '../../services/qcStorage';
-import { Search, Calendar, Clock, Copy, Check, FileText, Factory, Truck, Archive } from 'lucide-react';
+import { Search, Calendar, Clock, Copy, Check, FileText, Factory, Truck, Archive, Download, FileSpreadsheet } from 'lucide-react';
+import { exportShiftToExcel, exportRekapitulasiToExcel } from '../../utils/qcExcelExport';
 
 interface RiwayatPageProps {
   onLoadArchiveToActive?: (session: ShiftSession) => void;
@@ -90,14 +91,26 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="submit"
-              className="px-5 py-2.5 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+              className="px-4 py-2.5 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Search className="w-4 h-4" />
-              <span>Cari Arsip Riwayat</span>
+              <span>Cari Arsip</span>
             </button>
+
+            {archiveKeys.length > 0 && (
+              <button
+                type="button"
+                onClick={() => exportRekapitulasiToExcel(archives)}
+                className="px-4 py-2.5 bg-[#16A34A] hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Ekspor seluruh arsip shift ke satu file rekapitulasi Excel"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Ekspor Rekapitulasi (.xlsx)</span>
+              </button>
+            )}
           </div>
 
         </form>
@@ -152,11 +165,21 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => exportShiftToExcel(searchedSession)}
+                className="px-3.5 py-2 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
+                title="Unduh seluruh data arsip shift ini ke format Excel (.xlsx)"
+              >
+                <Download className="w-4 h-4" />
+                <span>Unduh Excel (.xlsx)</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleCopyReport}
-                className="px-4 py-2 bg-[#16A34A] hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 text-xs"
+                className="px-4 py-2 bg-[#16A34A] hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
               >
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 <span>{copied ? 'Tersalin!' : 'Copy Laporan WA Shift Ini'}</span>
@@ -166,7 +189,7 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
                 <button
                   type="button"
                   onClick={() => onLoadArchiveToActive(searchedSession)}
-                  className="px-3.5 py-2 bg-[#334155] hover:bg-slate-800 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 text-xs"
+                  className="px-3.5 py-2 bg-[#334155] hover:bg-slate-800 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
                 >
                   <span>Buka ke Layar Kerja</span>
                 </button>

@@ -1,4 +1,4 @@
-import { formatIndonesianDate } from './qcCalculations';
+import { formatIndonesianDate, formatIndonesianDateTitleCase } from './qcCalculations';
 import { MaterialPropItem } from '../types/qc';
 
 export interface CcrRenderData {
@@ -21,6 +21,9 @@ export interface CcrRenderData {
   };
   dryTotal: number;
   wetTotal: number;
+  totalMassaBasah?: number;
+  airMenguap?: number;
+  opcWarning?: string;
 }
 
 function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -53,7 +56,49 @@ function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w:
 export async function renderCcrImage(data: CcrRenderData): Promise<string> {
   const scale = 2; // 2x Retina resolution
   const width = 640;
-  const height = 560;
+
+  // Active Material Items - Filter material non-aktif / 0.0% (Poin 2)
+  const activeItems: { name: string; dry: number; h2o: number; wBasah: number; wet: number }[] = [];
+  const rawList = [
+    { name: 'CLINKER', item: data.materials.clinker },
+    { name: 'GYPSUM', item: data.materials.gypsum },
+    { name: 'LIMESTONE', item: data.materials.limestone },
+    { name: 'TRASS', item: data.materials.trass },
+    { name: 'FLY ASH', item: data.materials.flyAsh },
+  ];
+
+  let sumWBasah = 0;
+  rawList.forEach(r => {
+    if (r.item.dry > 0) {
+      const dry = r.item.dry;
+      const h2o = r.item.h2o;
+      const wBasah = r.item.wBasah ?? (dry > 0 ? (dry / (1 - (h2o / 100))) : 0);
+      sumWBasah += wBasah;
+
+      activeItems.push({
+        name: r.name,
+        dry: r.item.dry,
+        h2o: r.item.h2o,
+        wBasah: Number(wBasah.toFixed(1)),
+        wet: r.item.wet,
+      });
+    }
+  });
+
+  const totalWBasahFormatted = (data.totalMassaBasah ?? sumWBasah).toFixed(1);
+  const airMenguap = (data.airMenguap ?? Math.max(0, (data.totalMassaBasah ?? sumWBasah) - 100.0)).toFixed(1);
+
+  const rowH = 32;
+  const sumBoxH = 68;
+  const totalRowsCount = activeItems.length + 2; // header + active items + total
+  const tableH = rowH * totalRowsCount;
+  const mainCardH = 58 + tableH + 14 + sumBoxH + 20;
+
+  const pad = 20;
+  const headerCardY = pad;
+  const headerCardH = 80;
+  const mainCardY = headerCardY + headerCardH + 12;
+  const height = mainCardY + mainCardH + 34;
 
   const canvas = document.createElement('canvas');
   canvas.width = width * scale;
@@ -68,16 +113,11 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
   ctx.fillStyle = '#F3F4F6';
   ctx.fillRect(0, 0, width, height);
 
-  const pad = 20;
   const cardW = width - pad * 2;
 
   // ==========================================
   // BAGIAN 1: Card Header (Kotak Atas)
   // ==========================================
-  const headerCardY = pad;
-  const headerCardH = 80;
-
-  // Header Card Box
   drawRoundedRect(ctx, pad, headerCardY, cardW, headerCardH, 12);
   ctx.fillStyle = '#FFFFFF';
   ctx.fill();
@@ -135,9 +175,9 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
   ctx.font = 'bold 15px "Plus Jakarta Sans", system-ui, sans-serif';
   ctx.fillText(`Proporsi ${data.productType} - ${data.millCode}`, pad + cardW - 18, headerCardY + 45);
 
-  // 3. Sub-teks abu-abu: [DD Bulan YYYY, HH:mm] WIB (Format waktu Indonesia, real-time saat gambar digenerate)
+  // 3. Sub-teks abu-abu: [DD MMMM YYYY, HH:mm WIB] (Format waktu Indonesia, real-time saat gambar digenerate)
   const now = new Date();
-  const dateStr = formatIndonesianDate(data.date);
+  const dateStr = formatIndonesianDateTitleCase(data.date);
   const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
   ctx.fillStyle = '#64748B';
   ctx.font = '500 11px "Plus Jakarta Sans", system-ui, sans-serif';
@@ -146,9 +186,6 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
   // ==========================================
   // BAGIAN 2: Card Utama "HASIL SETPOINT FEEDER"
   // ==========================================
-  const mainCardY = headerCardY + headerCardH + 12;
-  const mainCardH = 405;
-
   drawRoundedRect(ctx, pad, mainCardY, cardW, mainCardH, 12);
   ctx.fillStyle = '#FFFFFF';
   ctx.fill();
@@ -192,40 +229,9 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
   const tableY = mainCardY + 58;
   const tableW = cardW - 36;
   const colW = [124, 100, 100, 120, tableW - (124 + 100 + 100 + 120)];
-  const rowH = 32;
-
-  // Active Material Items
-  const activeItems: { name: string; dry: number; h2o: number; wBasah: number; wet: number }[] = [];
-  const rawList = [
-    { name: 'CLINKER', item: data.materials.clinker },
-    { name: 'GYPSUM', item: data.materials.gypsum },
-    { name: 'LIMESTONE', item: data.materials.limestone },
-    { name: 'TRASS', item: data.materials.trass },
-    { name: 'FLY ASH', item: data.materials.flyAsh },
-  ];
-
-  let sumWBasah = 0;
-  rawList.forEach(r => {
-    const dry = r.item.dry;
-    const h2o = r.item.h2o;
-    const wBasah = dry > 0 ? (dry / (1 - (h2o / 100))) : 0;
-    sumWBasah += wBasah;
-
-    activeItems.push({
-      name: r.name,
-      dry: r.item.dry,
-      h2o: r.item.h2o,
-      wBasah: Number(wBasah.toFixed(2)),
-      wet: r.item.wet,
-    });
-  });
-
-  const totalWBasahFormatted = sumWBasah.toFixed(2);
-  const airMenguap = Math.max(0, sumWBasah - 100.0).toFixed(2);
 
   // Table Outer Frame
-  const totalRowsCount = activeItems.length + 2; // header + 5 rows + total
-  drawRoundedRect(ctx, tableX, tableY, tableW, rowH * totalRowsCount, 8);
+  drawRoundedRect(ctx, tableX, tableY, tableW, tableH, 8);
   ctx.strokeStyle = '#CBD5E1';
   ctx.lineWidth = 1;
   ctx.stroke();
@@ -273,11 +279,11 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
     ctx.fillText(`${item.dry.toFixed(1)}%`, tableX + colW[0] + colW[1] - 12, curY + 20);
 
     // MOIST (Column 3)
-    ctx.fillText(`${item.h2o.toFixed(2)}%`, tableX + colW[0] + colW[1] + colW[2] - 12, curY + 20);
+    ctx.fillText(`${item.h2o.toFixed(1)}%`, tableX + colW[0] + colW[1] + colW[2] - 12, curY + 20);
 
-    // W BASAH (Column 4)
+    // W BASAH (Column 4 - Poin 3: konsisten 1 angka desimal)
     ctx.fillStyle = '#0F172A';
-    ctx.fillText(`${item.wBasah.toFixed(2)}`, tableX + colW[0] + colW[1] + colW[2] + colW[3] - 12, curY + 20);
+    ctx.fillText(`${item.wBasah.toFixed(1)}`, tableX + colW[0] + colW[1] + colW[2] + colW[3] - 12, curY + 20);
 
     // %WET Badge (Column 5 - Pink Badge bg-red-50 text-red #E31E24)
     const wetBadgeW = 74;
@@ -358,7 +364,6 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
   // ==========================================
   const sumBoxesY = tableY + rowH * totalRowsCount + 12;
   const sumBoxW = (tableW - 12) / 2;
-  const sumBoxH = 68;
 
   // Kotak Kiri: Total Massa Basah
   drawRoundedRect(ctx, tableX, sumBoxesY, sumBoxW, sumBoxH, 10);

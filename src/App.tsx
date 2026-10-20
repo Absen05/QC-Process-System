@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShiftSession, 
   MasterTargetDryMap, 
@@ -16,9 +16,9 @@ import {
   getStoredMasterTargets, 
   saveStoredMasterTargets, 
   switchOrStartShift, 
-  resumeLatestActiveStateForUser,
   resetFactoryData 
 } from './services/qcStorage';
+import { fetchCloudSession, saveCloudSession } from './services/qcApi';
 
 import { Navbar, MainAppTab } from './components/qc/Navbar';
 import { LoginPage } from './components/qc/LoginPage';
@@ -51,8 +51,39 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [proporsiTargetMill, setProporsiTargetMill] = useState<'TM' | 'VRM'>('TM');
 
-  // Handle successful login: seamlessly resume state and route by role (Poin 1 & 2)
-  const handleLoginSuccess = (user: UserAccount, date: string, shift: ShiftName) => {
+  // Poin 2: Sinkronisasi Cloud Database Real-time (PC & HP)
+  useEffect(() => {
+    if (!auth.isLoggedIn || !auth.loginDate || !auth.loginShift) return;
+
+    let isMounted = true;
+    fetchCloudSession(auth.loginDate, auth.loginShift).then((res) => {
+      if (isMounted && res.found && res.session) {
+        setSession(res.session);
+      }
+    });
+
+    // Background polling sync setiap 10 detik agar perubahan di PC langsung tampak di HP
+    const interval = setInterval(() => {
+      fetchCloudSession(auth.loginDate, auth.loginShift).then((res) => {
+        if (isMounted && res.found && res.session) {
+          setSession((prev) => {
+            if (res.session && res.session._serverUpdatedAt && res.session._serverUpdatedAt !== (prev as any)._serverUpdatedAt) {
+              return res.session;
+            }
+            return prev;
+          });
+        }
+      });
+    }, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [auth.isLoggedIn, auth.loginDate, auth.loginShift]);
+
+  // Handle successful login: query cloud session first, else create with carry-over (Poin 2 & 3)
+  const handleLoginSuccess = async (user: UserAccount, date: string, shift: ShiftName) => {
     const newAuth: AuthSession = {
       isLoggedIn: true,
       user,
@@ -62,21 +93,32 @@ export default function App() {
     setAuth(newAuth);
     saveStoredAuth(newAuth);
 
-    // Resume latest active state left by coworkers from prior shift
-    const loadedSession = resumeLatestActiveStateForUser(user.name, date, shift);
-    setSession(loadedSession);
-
-    // Direct SI/Admin to 'master' (Master Data), and Analyst to 'grid' (Input Data) (Poin 1 & 2)
     if (user.role === 'supervisor') {
       setCurrentTab('master');
+      const cloudRes = await fetchCloudSession(date, shift);
+      if (cloudRes.session) {
+        setSession(cloudRes.session);
+      }
     } else {
       setCurrentTab('grid');
+      // Fetch data aktif berdasarkan tanggal dan shift saat itu
+      const cloudRes = await fetchCloudSession(date, shift);
+      if (cloudRes.found && cloudRes.session) {
+        setSession(cloudRes.session);
+        saveStoredActiveSession(cloudRes.session);
+      } else {
+        // Estafet proporsi shift dari sesi lampau
+        const loadedSession = switchOrStartShift(date, shift, user.name);
+        setSession(loadedSession);
+        saveCloudSession(loadedSession);
+      }
     }
   };
 
   // Handle user logout: persist state permanently before clearing auth
   const handleLogout = () => {
     saveStoredActiveSession(session);
+    saveCloudSession(session);
     logoutUser();
     setAuth({
       isLoggedIn: false,
@@ -87,10 +129,11 @@ export default function App() {
     setIsProfileModalOpen(false);
   };
 
-  // Update session and persist to storage and archive
+  // Update session and persist to storage and cloud database (Poin 2)
   const handleUpdateSession = (updated: ShiftSession) => {
     setSession(updated);
     saveStoredActiveSession(updated);
+    saveCloudSession(updated);
   };
 
   // Start or switch shift from ShiftModal with Dual-Mill support
@@ -167,6 +210,7 @@ export default function App() {
         onOpenShiftModal={() => setIsShiftModalOpen(true)}
         onOpenAiModal={() => setIsAiModalOpen(true)}
         onOpenProfileModal={() => setIsProfileModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Viewport Container */}
