@@ -90,6 +90,7 @@ export interface ProporsiConfig {
 
 export interface HourlyAnalysisRow {
   hour: string; // "08:00", "09:00", etc.
+  productType?: string; // Active product type for this hour (e.g. "PCC Plus FA", "OPC G")
   blaine: number | null; // cm2/gr
   residuR45: number | null; // %
   moistureH2O: number | null; // % (every 2 hr)

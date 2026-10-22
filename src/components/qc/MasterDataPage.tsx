@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { MasterTargetDryMap, MillType, ProductType, UserAccount, ProductQualitySpec, CgaMasterSetting } from '../../types/qc';
+import { MasterTargetDryMap, MillType, UserAccount, ProductQualitySpec, CgaMasterSetting } from '../../types/qc';
 import { 
   saveStoredMasterTargets, 
-  resetFactoryData, 
   getStoredUsers, 
-  saveStoredUsers, 
   resetUserPin, 
   getStoredProductList, 
   saveStoredProductList,
@@ -12,7 +10,9 @@ import {
   getStoredQualitySpecs,
   saveStoredQualitySpecs,
   getStoredCgaSettings,
-  saveStoredCgaSettings
+  saveStoredCgaSettings,
+  syncQualitySpecsWithTargets,
+  syncCgaSettingsWithTargets
 } from '../../services/qcStorage';
 import { 
   saveCloudMasterTargets, 
@@ -23,7 +23,7 @@ import {
   fetchCloudCgaSettings,
   fetchCloudProductList
 } from '../../services/qcApi';
-import { ShieldCheck, Save, RotateCcw, Check, Plus, Trash2, Key, Beaker, Sliders, Users, Layers, Download, X, Edit3, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Save, Check, Plus, Trash2, Key, Beaker, Sliders, Users, Layers, X, Edit3, AlertTriangle, Factory, Link2 } from 'lucide-react';
 
 interface MasterDataPageProps {
   masterTargets: MasterTargetDryMap;
@@ -34,52 +34,75 @@ interface MasterDataPageProps {
 export const MasterDataPage: React.FC<MasterDataPageProps> = ({
   masterTargets,
   onUpdateMasterTargets,
-  onResetFactoryData,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'targets' | 'quality' | 'cga' | 'users'>('targets');
   const [activeMill, setActiveMill] = useState<MillType>('Tube Mill (TM)');
   const [activeQualityMill, setActiveQualityMill] = useState<'TM' | 'VRM'>('TM');
   const [activeCgaMill, setActiveCgaMill] = useState<'TM' | 'VRM'>('TM');
   
-  // Targets state
+  // Targets state (Master Reference)
   const [targets, setTargets] = useState<MasterTargetDryMap>(masterTargets);
   const [productList, setProductList] = useState<string[]>(() => getStoredProductList());
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showConfirmSaveTargetsModal, setShowConfirmSaveTargetsModal] = useState(false);
   const [targetDrySuccessMessage, setTargetDrySuccessMessage] = useState<string | null>(null);
 
-  // Quality Specs state
-  const [qualitySpecs, setQualitySpecs] = useState<ProductQualitySpec[]>(() => getStoredQualitySpecs());
+  // Quality Specs state (Referenced from Master Target Dry)
+  const [qualitySpecs, setQualitySpecs] = useState<ProductQualitySpec[]>(() =>
+    syncQualitySpecsWithTargets(masterTargets, getStoredQualitySpecs())
+  );
   
-  // CGA Master state
-  const [cgaSettings, setCgaSettings] = useState<CgaMasterSetting[]>(() => getStoredCgaSettings());
+  // CGA Master state (Referenced from Master Target Dry)
+  const [cgaSettings, setCgaSettings] = useState<CgaMasterSetting[]>(() =>
+    syncCgaSettingsWithTargets(masterTargets, getStoredCgaSettings())
+  );
   const [cgaBrands, setCgaBrands] = useState<string[]>(['SIKA', 'CONCH', 'GCP']);
 
   // Users state
   const [usersList, setUsersList] = useState<UserAccount[]>(() => getStoredUsers());
   const [userActionMessage, setUserActionMessage] = useState<string | null>(null);
 
+  // Setiap kali Master Target Dry berubah, pastikan tabel Target Quality & Master CGA selalu sinkron memiliki produk yang sama
   useEffect(() => {
     setTargets(masterTargets);
+    setQualitySpecs((prev) => {
+      const synced = syncQualitySpecsWithTargets(masterTargets, prev);
+      saveStoredQualitySpecs(synced);
+      return synced;
+    });
+    setCgaSettings((prev) => {
+      const synced = syncCgaSettingsWithTargets(masterTargets, prev);
+      saveStoredCgaSettings(synced);
+      return synced;
+    });
   }, [masterTargets]);
 
   useEffect(() => {
     fetchCloudQualitySpecs().then((specs) => {
-      if (specs) {
-        setQualitySpecs(specs);
-        saveStoredQualitySpecs(specs);
+      const baseSpecs = specs || getStoredQualitySpecs();
+      const syncedSpecs = syncQualitySpecsWithTargets(masterTargets, baseSpecs);
+      setQualitySpecs(syncedSpecs);
+      saveStoredQualitySpecs(syncedSpecs);
+      if (!specs || specs.length !== syncedSpecs.length || specs.some((s: any) => !s.millType)) {
+        saveCloudQualitySpecs(syncedSpecs);
       }
     });
     fetchCloudCgaSettings().then((settings) => {
-      if (settings) {
-        setCgaSettings(settings);
-        saveStoredCgaSettings(settings);
+      const baseCga = settings || getStoredCgaSettings();
+      const syncedCga = syncCgaSettingsWithTargets(masterTargets, baseCga);
+      setCgaSettings(syncedCga);
+      saveStoredCgaSettings(syncedCga);
+      if (!settings || settings.length !== syncedCga.length || settings.some((c: any) => !c.millType)) {
+        saveCloudCgaSettings(syncedCga);
       }
     });
     fetchCloudProductList().then((products) => {
-      if (products) {
-        setProductList(products);
-        saveStoredProductList(products);
+      const tmProds = Object.keys(masterTargets?.['Tube Mill (TM)'] || {});
+      const vrmProds = Object.keys(masterTargets?.['Vertical Roller Mill (VRM)'] || {});
+      const mergedProds = Array.from(new Set([...(products || []), ...tmProds, ...vrmProds]));
+      if (mergedProds.length > 0) {
+        setProductList(mergedProds);
+        saveStoredProductList(mergedProds);
       }
     });
   }, []);
@@ -161,7 +184,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
   const handleSaveTargets = () => {
     // Validate each product sums to 100%
     for (const mill of ['Vertical Roller Mill (VRM)', 'Tube Mill (TM)'] as MillType[]) {
-      for (const prod of productList) {
+      for (const prod of Object.keys(targets[mill] || {})) {
         const p = targets[mill]?.[prod];
         if (p) {
           const sum = p.clinker + p.gypsum + p.limestone + p.trass + p.flyAsh;
@@ -181,9 +204,21 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     saveStoredMasterTargets(targets);
     await saveCloudMasterTargets(targets);
     onUpdateMasterTargets(targets);
+
+    // Pastikan Quality Specs & CGA Settings tersinkronisasi penuh dengan Master Target Dry
+    const syncedQuality = syncQualitySpecsWithTargets(targets, qualitySpecs);
+    setQualitySpecs(syncedQuality);
+    saveStoredQualitySpecs(syncedQuality);
+    await saveCloudQualitySpecs(syncedQuality);
+
+    const syncedCga = syncCgaSettingsWithTargets(targets, cgaSettings);
+    setCgaSettings(syncedCga);
+    saveStoredCgaSettings(syncedCga);
+    await saveCloudCgaSettings(syncedCga);
+
     setShowConfirmSaveTargetsModal(false);
     setSaveSuccess(true);
-    setTargetDrySuccessMessage('✅ Master Target Dry berhasil disimpan dan diperbarui!');
+    setTargetDrySuccessMessage('✅ Master Target Dry berhasil disimpan dan disinkronkan ke Quality & CGA!');
     setTimeout(() => {
       setTargetDrySuccessMessage(null);
       setSaveSuccess(false);
@@ -263,21 +298,21 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     await saveCloudMasterTargets(updatedTargets);
     onUpdateMasterTargets(updatedTargets);
 
-    // Also remove from quality specs
-    const updatedQuality = qualitySpecs.filter(s => s.productType !== product);
+    // Also remove from quality specs (sinkronisasi referensi)
+    const updatedQuality = syncQualitySpecsWithTargets(updatedTargets, qualitySpecs.filter(s => s.productType !== product));
     setQualitySpecs(updatedQuality);
     saveStoredQualitySpecs(updatedQuality);
     await saveCloudQualitySpecs(updatedQuality);
 
-    // Also remove from cga settings
-    const updatedCga = cgaSettings.filter(c => c.productType !== product);
+    // Also remove from cga settings (sinkronisasi referensi)
+    const updatedCga = syncCgaSettingsWithTargets(updatedTargets, cgaSettings.filter(c => c.productType !== product));
     setCgaSettings(updatedCga);
     saveStoredCgaSettings(updatedCga);
     await saveCloudCgaSettings(updatedCga);
 
     setDeletingDryProduct(null);
     setSaveSuccess(true);
-    setTargetDrySuccessMessage(`✅ Produk [${product}] berhasil dihapus permanen dari Master Data!`);
+    setTargetDrySuccessMessage(`✅ Produk [${product}] berhasil dihapus dari Target Dry, Quality, dan CGA!`);
     setTimeout(() => {
       setTargetDrySuccessMessage(null);
       setSaveSuccess(false);
@@ -293,9 +328,10 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     e.preventDefault();
     if (!editingQualitySpec) return;
 
+    const targetMill = editingQualitySpec.millType || activeQualityMill;
     const updated = qualitySpecs.map(s => {
-      if (s.productType === editingQualitySpec.productType) {
-        return editingQualitySpec;
+      if ((s.millType || targetMill) === targetMill && s.productType === editingQualitySpec.productType) {
+        return { ...editingQualitySpec, millType: targetMill };
       }
       return s;
     });
@@ -305,7 +341,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     await saveCloudQualitySpecs(updated);
     setEditingQualitySpec(null);
     setSaveSuccess(true);
-    setTargetDrySuccessMessage(`✅ Target Quality [${editingQualitySpec.productType}] berhasil diperbarui!`);
+    setTargetDrySuccessMessage(`✅ Target Quality ${targetMill} [${editingQualitySpec.productType}] berhasil diperbarui!`);
     setTimeout(() => {
       setTargetDrySuccessMessage(null);
       setSaveSuccess(false);
@@ -314,92 +350,16 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
 
   const handleConfirmDeleteQuality = async () => {
     if (!deletingQualitySpec) return;
-    const deletedName = deletingQualitySpec.productType;
-    const updated = qualitySpecs.filter(s => s.productType !== deletedName);
-    setQualitySpecs(updated);
-    saveStoredQualitySpecs(updated);
-    await saveCloudQualitySpecs(updated);
     setDeletingQualitySpec(null);
-    setSaveSuccess(true);
-    setTargetDrySuccessMessage(`✅ Target Quality [${deletedName}] berhasil dihapus!`);
-    setTimeout(() => {
-      setTargetDrySuccessMessage(null);
-      setSaveSuccess(false);
-    }, 3500);
   };
 
   // Create new product for Target Quality
   const handleCreateQualityProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const name = newQProdName.trim().toUpperCase();
-    if (!name) return;
-
-    const newSpec: ProductQualitySpec = {
-      productType: name,
-      blaine: { min: newQBlaineMin, std: newQBlaineStd, max: newQBlaineMax },
-      residuR45: { min: newQR45Min, std: newQR45Std, max: newQR45Max },
-      moistureH2O: { min: 0.05, std: newQH2oStd, max: newQH2oMax },
-      so3: { min: newQSo3Min, std: newQSo3Std, max: newQSo3Max },
-      freelimeFCaO: { min: 0.50, std: newQFCaoStd, max: newQFCaoMax },
-    };
-
-    const updatedQuality = [...qualitySpecs.filter(s => s.productType !== name), newSpec];
-    setQualitySpecs(updatedQuality);
-    saveStoredQualitySpecs(updatedQuality);
-    await saveCloudQualitySpecs(updatedQuality);
-
-    // Also register in productList if not present
-    const currentList = getStoredProductList();
-    if (!currentList.includes(name)) {
-      const updatedList = [...currentList, name];
-      setProductList(updatedList);
-      saveStoredProductList(updatedList);
-      await saveCloudProductList(updatedList);
-    }
-
-    // Ensure Master Target Dry entry exists for TM and VRM
-    const updatedTargets = { ...targets };
-    const defaultFormula = { clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0 };
-    if (!updatedTargets['Tube Mill (TM)'][name]) {
-      updatedTargets['Tube Mill (TM)'][name] = { ...defaultFormula };
-    }
-    if (!updatedTargets['Vertical Roller Mill (VRM)'][name]) {
-      updatedTargets['Vertical Roller Mill (VRM)'][name] = { ...defaultFormula };
-    }
-    setTargets(updatedTargets);
-    saveStoredMasterTargets(updatedTargets);
-    await saveCloudMasterTargets(updatedTargets);
-    onUpdateMasterTargets(updatedTargets);
-
-    // Ensure CGA entry exists
-    const currentCga = getStoredCgaSettings();
-    if (!currentCga.some(c => c.productType === name)) {
-      const newCga = [
-        ...currentCga,
-        {
-          id: `cga_${Date.now()}`,
-          productType: name,
-          cgaBrand: 'SIKA',
-          dosagePpm: 400,
-          notes: `Setting standar untuk ${newQMill === 'BOTH' ? 'TM & VRM' : newQMill}`,
-        }
-      ];
-      setCgaSettings(newCga);
-      saveStoredCgaSettings(newCga);
-      await saveCloudCgaSettings(newCga);
-    }
-
     setShowAddQualityProductModal(false);
-    setNewQProdName('');
-    setSaveSuccess(true);
-    setTargetDrySuccessMessage(`✅ Produk [${name}] beserta Target Quality berhasil ditambahkan ke Master Data!`);
-    setTimeout(() => {
-      setTargetDrySuccessMessage(null);
-      setSaveSuccess(false);
-    }, 4500);
   };
 
-  // Create new product
+  // Create new product in Master Target Dry (Otomatis menambahkan ke Target Quality & Master CGA untuk TM dan VRM)
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newProdName.trim().toUpperCase();
@@ -419,25 +379,54 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       flyAsh: newProdFa,
     };
 
+    const updatedTargets: MasterTargetDryMap = {
+      'Tube Mill (TM)': { ...targets['Tube Mill (TM)'], [name]: { ...targetObj } },
+      'Vertical Roller Mill (VRM)': { ...targets['Vertical Roller Mill (VRM)'], [name]: { ...targetObj } },
+    };
+
     addNewProductType(name, targetObj, targetObj);
-    setProductList(getStoredProductList());
-    setTargets(prev => ({
-      'Tube Mill (TM)': { ...prev['Tube Mill (TM)'], [name]: targetObj },
-      'Vertical Roller Mill (VRM)': { ...prev['Vertical Roller Mill (VRM)'], [name]: targetObj },
-    }));
-    setQualitySpecs(getStoredQualitySpecs());
-    setCgaSettings(getStoredCgaSettings());
+    const updatedProdList = getStoredProductList();
+    setProductList(updatedProdList);
+    setTargets(updatedTargets);
+    saveStoredMasterTargets(updatedTargets);
+    onUpdateMasterTargets(updatedTargets);
+
+    const syncedQuality = syncQualitySpecsWithTargets(updatedTargets, getStoredQualitySpecs());
+    setQualitySpecs(syncedQuality);
+    saveStoredQualitySpecs(syncedQuality);
+
+    const syncedCga = syncCgaSettingsWithTargets(updatedTargets, getStoredCgaSettings());
+    setCgaSettings(syncedCga);
+    saveStoredCgaSettings(syncedCga);
+
+    // Simpan semuanya ke Supabase Cloud DB
+    await Promise.all([
+      saveCloudProductList(updatedProdList),
+      saveCloudMasterTargets(updatedTargets),
+      saveCloudQualitySpecs(syncedQuality),
+      saveCloudCgaSettings(syncedCga),
+    ]);
 
     setNewProdName('');
     setShowAddProductModal(false);
-    alert(`✅ Produk baru [${name}] berhasil didaftarkan ke Master Data!`);
+    setSaveSuccess(true);
+    setTargetDrySuccessMessage(`✅ Produk baru [${name}] berhasil didaftarkan ke Target Dry, Target Quality, dan Master CGA!`);
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 4500);
   };
 
-  // Quality Spec change
-  const handleQualitySpecChange = (prod: string, param: keyof ProductQualitySpec, key: 'min' | 'max' | 'std', val: string) => {
+  // Quality Spec change (spesifik untuk activeQualityMill & produk)
+  const handleQualitySpecChange = (
+    prod: string,
+    param: keyof ProductQualitySpec,
+    key: 'min' | 'max' | 'std',
+    val: string
+  ) => {
     const num = val === '' ? null : parseFloat(val);
     const updated = qualitySpecs.map(s => {
-      if (s.productType === prod) {
+      if (s.millType === activeQualityMill && s.productType === prod) {
         return {
           ...s,
           [param]: {
@@ -452,17 +441,19 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
   };
 
   const handleSaveQualitySpecs = async () => {
-    saveStoredQualitySpecs(qualitySpecs);
-    await saveCloudQualitySpecs(qualitySpecs);
+    const synced = syncQualitySpecsWithTargets(targets, qualitySpecs);
+    setQualitySpecs(synced);
+    saveStoredQualitySpecs(synced);
+    await saveCloudQualitySpecs(synced);
     setSaveSuccess(true);
-    setTargetDrySuccessMessage('✅ Master Target Quality berhasil disimpan ke Cloud DB!');
+    setTargetDrySuccessMessage(`✅ Master Target Quality (${activeQualityMill}) berhasil disimpan ke Cloud DB!`);
     setTimeout(() => {
       setTargetDrySuccessMessage(null);
       setSaveSuccess(false);
     }, 3500);
   };
 
-  // CGA settings change
+  // CGA settings change (spesifik untuk activeCgaMill & produk)
   const handleCgaChange = (id: string, field: 'cgaBrand' | 'dosagePpm' | 'notes', val: any) => {
     const updated = cgaSettings.map(c => {
       if (c.id === id) {
@@ -474,10 +465,12 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
   };
 
   const handleSaveCga = async () => {
-    saveStoredCgaSettings(cgaSettings);
-    await saveCloudCgaSettings(cgaSettings);
+    const synced = syncCgaSettingsWithTargets(targets, cgaSettings);
+    setCgaSettings(synced);
+    saveStoredCgaSettings(synced);
+    await saveCloudCgaSettings(synced);
     setSaveSuccess(true);
-    setTargetDrySuccessMessage('✅ Master CGA berhasil disimpan ke Cloud DB!');
+    setTargetDrySuccessMessage(`✅ Master CGA (${activeCgaMill}) berhasil disimpan ke Cloud DB!`);
     setTimeout(() => {
       setTargetDrySuccessMessage(null);
       setSaveSuccess(false);
@@ -505,6 +498,13 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     }
   };
 
+  // Daftar produk referensi dari Master Target Dry untuk mesin yang dipilih pada Quality & CGA
+  const qualityMillKey: MillType = activeQualityMill === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)';
+  const referenceQualityProducts = Object.keys(targets[qualityMillKey] || {});
+
+  const cgaMillKey: MillType = activeCgaMill === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)';
+  const referenceCgaProducts = Object.keys(targets[cgaMillKey] || {});
+
   return (
     <div className="space-y-4 font-sans">
 
@@ -521,7 +521,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
             Pengaturan Master Data Pabrik
           </h2>
           <p className="text-xs text-slate-500">
-            Kelola target dry formulasi semen, standar mutu lab, master CGA, serta reset PIN akun analis.
+            Tabel <strong>Master Target Dry Proporsi</strong> menjadi referensi utama produk untuk Tabel Target Quality & Master CGA.
           </p>
         </div>
 
@@ -544,20 +544,20 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
         <button
           type="button"
           onClick={() => setActiveSubTab('targets')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
             activeSubTab === 'targets'
               ? 'bg-[#E31E24] text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
           }`}
         >
           <Sliders className="w-4 h-4" />
-          <span>1. Target Dry Proporsi</span>
+          <span>1. Target Dry Proporsi (Master Referensi)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveSubTab('quality')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
             activeSubTab === 'quality'
               ? 'bg-[#0284C7] text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
@@ -570,7 +570,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
         <button
           type="button"
           onClick={() => setActiveSubTab('cga')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
             activeSubTab === 'cga'
               ? 'bg-[#16A34A] text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
@@ -583,7 +583,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
         <button
           type="button"
           onClick={() => setActiveSubTab('users')}
-          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+          className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
             activeSubTab === 'users'
               ? 'bg-[#334155] text-white shadow-sm'
               : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
@@ -600,39 +600,41 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       {activeSubTab === 'targets' && (
         <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm space-y-4">
           
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
-            {/* Pemisahan Sub-tabel Mandiri: Master Target Dry TM vs VRM (Poin II.1) */}
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
+            {/* Elongated & Dynamic Sub-tabel Switcher: Master Target Dry TM vs VRM */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200 border-2 border-slate-400 rounded-xl w-full lg:w-auto lg:min-w-[460px] xl:min-w-[520px] shadow-inner shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveMill('Tube Mill (TM)')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                   activeMill === 'Tube Mill (TM)'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md border border-amber-700 scale-[1.01]'
+                    : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
                 }`}
               >
-                <span>Master Target Dry TM</span>
+                <Factory className={`w-4 h-4 shrink-0 ${activeMill === 'Tube Mill (TM)' ? 'text-white' : 'text-amber-600'}`} />
+                <span>MASTER DRY — TM</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveMill('Vertical Roller Mill (VRM)')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                   activeMill === 'Vertical Roller Mill (VRM)'
-                    ? 'bg-[#0284C7] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                    ? 'bg-gradient-to-r from-[#0284C7] to-sky-700 text-white shadow-md border border-sky-800 scale-[1.01]'
+                    : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
                 }`}
               >
-                <span>Master Target Dry VRM</span>
+                <Factory className={`w-4 h-4 shrink-0 ${activeMill === 'Vertical Roller Mill (VRM)' ? 'text-white' : 'text-[#0284C7]'}`} />
+                <span>MASTER DRY — VRM</span>
               </button>
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowAddProductModal(true)}
-                className="px-3.5 py-2 text-xs font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-sm flex items-center gap-1.5"
+                className="px-3.5 py-2 text-xs font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Tambah Produk Baru</span>
@@ -641,7 +643,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
               <button
                 type="button"
                 onClick={handleSaveTargets}
-                className="px-4 py-2 text-xs font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 <span>Simpan Target Dry</span>
@@ -654,7 +656,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
             <table className="w-full text-left border-collapse text-xs font-mono">
               <thead>
                 <tr className="bg-slate-700 text-white font-bold border-b border-slate-500">
-                  <th className="py-2.5 px-3 border-r border-slate-500 w-36 font-sans">PRODUK</th>
+                  <th className="py-2.5 px-3 border-r border-slate-500 w-36 font-sans">PRODUK (REFERENSI UTAMA)</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 text-right w-24">CLINKER (%)</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 text-right w-24">GYPSUM (%)</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 text-right w-24">LIMESTONE (%)</th>
@@ -705,7 +707,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
                             type="button"
                             onClick={() => setDeletingDryProduct({ product: prod, mill: activeMill })}
                             className="px-2.5 py-1 bg-[#E31E24] hover:bg-red-700 text-white font-bold rounded text-[11px] flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                            title={`Hapus Target Dry ${prod}`}
+                            title={`Hapus Produk ${prod} dari seluruh Master Data`}
                           >
                             <Trash2 className="w-3 h-3" />
                             <span>Hapus</span>
@@ -723,57 +725,52 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       )}
 
       {/* ============================================================== */}
-      {/* SUB-TAB 2: TABEL TARGET QUALITY (MIN / MAX / STD) */}
+      {/* SUB-TAB 2: TABEL TARGET QUALITY (MENGACU PADA MASTER TARGET DRY) */}
       {/* ============================================================== */}
       {activeSubTab === 'quality' && (
         <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
-            {/* Pemisahan Sub-tabel Mandiri: Target Quality TM vs VRM (Poin II.2) */}
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
+            {/* Elongated & Dynamic Sub-tabel Switcher: Target Quality TM vs VRM */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200 border-2 border-slate-400 rounded-xl w-full lg:w-auto lg:min-w-[460px] xl:min-w-[520px] shadow-inner shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveQualityMill('TM')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                   activeQualityMill === 'TM'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md border border-amber-700 scale-[1.01]'
+                    : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
                 }`}
               >
-                <span>Target Quality TM</span>
+                <Factory className={`w-4 h-4 shrink-0 ${activeQualityMill === 'TM' ? 'text-white' : 'text-amber-600'}`} />
+                <span>TARGET QUALITY — TM</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveQualityMill('VRM')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                   activeQualityMill === 'VRM'
-                    ? 'bg-[#0284C7] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                    ? 'bg-gradient-to-r from-[#0284C7] to-sky-700 text-white shadow-md border border-sky-800 scale-[1.01]'
+                    : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
                 }`}
               >
-                <span>Target Quality VRM</span>
+                <Factory className={`w-4 h-4 shrink-0 ${activeQualityMill === 'VRM' ? 'text-white' : 'text-[#0284C7]'}`} />
+                <span>TARGET QUALITY — VRM</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setNewQMill(activeQualityMill);
-                  setShowAddQualityProductModal(true);
-                }}
-                className="px-3.5 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Tambah Target Quality ({activeQualityMill})</span>
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-2 bg-sky-50 border border-sky-300 text-sky-900 text-[11px] font-bold rounded-lg flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-[#0284C7]" />
+                <span>Referensi Produk: Master Target Dry ({activeQualityMill})</span>
+              </span>
 
               <button
                 type="button"
                 onClick={handleSaveQualitySpecs}
-                className="px-4 py-2 text-xs font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors"
+                className="px-4 py-2 text-xs font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Save className="w-4 h-4" />
-                <span>Simpan Target Quality</span>
+                <span>Simpan Target Quality ({activeQualityMill})</span>
               </button>
             </div>
           </div>
@@ -782,13 +779,13 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
             <table className="w-full text-left border-collapse text-xs font-mono">
               <thead>
                 <tr className="bg-slate-700 text-white font-bold border-b border-slate-500">
-                  <th className="py-2.5 px-3 border-r border-slate-500 w-36 font-sans">PRODUK</th>
+                  <th className="py-2.5 px-3 border-r border-slate-500 w-36 font-sans">PRODUK ({activeQualityMill})</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 text-center" colSpan={3}>BLAINE (cm²/gr)</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 text-center" colSpan={3}>R45 (%)</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 text-center" colSpan={2}>H2O (%)</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 text-center" colSpan={3}>SO3 (%)</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 text-center" colSpan={2}>F-CaO (%)</th>
-                  <th className="py-2.5 px-3 text-center w-36 font-sans" rowSpan={2}>AKSI</th>
+                  <th className="py-2.5 px-3 text-center w-28 font-sans" rowSpan={2}>AKSI</th>
                 </tr>
                 <tr className="bg-slate-600 text-white font-semibold border-b border-slate-500 text-[10px]">
                   <th className="border-r border-slate-500"></th>
@@ -808,164 +805,163 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
-                {qualitySpecs
-                  .filter(spec => !spec.millType || spec.millType === 'BOTH' || spec.millType === activeQualityMill)
-                  .map((spec) => (
-                  <tr key={`${spec.millType || 'ALL'}_${spec.productType}`} className="hover:bg-slate-50">
-                    <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900 bg-slate-50">
-                      {spec.productType}
-                    </td>
+                {referenceQualityProducts.map((prod) => {
+                  const spec =
+                    qualitySpecs.find(
+                      (s) => s.millType === activeQualityMill && s.productType.toUpperCase().trim() === prod.toUpperCase().trim()
+                    ) ||
+                    qualitySpecs.find((s) => s.productType.toUpperCase().trim() === prod.toUpperCase().trim());
 
-                    {/* Blaine */}
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="10"
-                        value={spec.blaine.min ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'blaine', 'min', e.target.value)}
-                        className="w-16 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="p-0 border-r border-slate-300 bg-amber-50/20">
-                      <input
-                        type="number"
-                        step="10"
-                        value={spec.blaine.std ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'blaine', 'std', e.target.value)}
-                        className="w-16 px-1.5 py-1.5 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="10"
-                        value={spec.blaine.max ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'blaine', 'max', e.target.value)}
-                        className="w-16 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
+                  if (!spec) return null;
 
-                    {/* R45 */}
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={spec.residuR45.min ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'residuR45', 'min', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="p-0 border-r border-slate-300 bg-amber-50/20">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={spec.residuR45.std ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'residuR45', 'std', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={spec.residuR45.max ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'residuR45', 'max', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
+                  return (
+                    <tr key={`${activeQualityMill}_${prod}`} className="hover:bg-slate-50">
+                      <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900 bg-slate-50">
+                        {prod}
+                      </td>
 
-                    {/* H2O */}
-                    <td className="p-0 border-r border-slate-300 bg-blue-50/20">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={spec.moistureH2O.std ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'moistureH2O', 'std', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={spec.moistureH2O.max ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'moistureH2O', 'max', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
+                      {/* Blaine */}
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="10"
+                          value={spec.blaine.min ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'blaine', 'min', e.target.value)}
+                          className="w-16 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="p-0 border-r border-slate-300 bg-amber-50/20">
+                        <input
+                          type="number"
+                          step="10"
+                          value={spec.blaine.std ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'blaine', 'std', e.target.value)}
+                          className="w-16 px-1.5 py-1.5 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="10"
+                          value={spec.blaine.max ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'blaine', 'max', e.target.value)}
+                          className="w-16 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
 
-                    {/* SO3 */}
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="0.05"
-                        value={spec.so3.min ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'so3', 'min', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="p-0 border-r border-slate-300 bg-sky-50/20">
-                      <input
-                        type="number"
-                        step="0.05"
-                        value={spec.so3.std ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'so3', 'std', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono font-bold text-[#0284C7] bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="0.05"
-                        value={spec.so3.max ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'so3', 'max', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
+                      {/* R45 */}
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={spec.residuR45.min ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'residuR45', 'min', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="p-0 border-r border-slate-300 bg-amber-50/20">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={spec.residuR45.std ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'residuR45', 'std', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={spec.residuR45.max ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'residuR45', 'max', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
 
-                    {/* F-CaO */}
-                    <td className="p-0 border-r border-slate-300 bg-amber-50/20">
-                      <input
-                        type="number"
-                        step="0.05"
-                        value={spec.freelimeFCaO.std ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'freelimeFCaO', 'std', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono font-bold text-amber-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="0.05"
-                        value={spec.freelimeFCaO.max ?? ''}
-                        onChange={(e) => handleQualitySpecChange(spec.productType, 'freelimeFCaO', 'max', e.target.value)}
-                        className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
-                    <td className="py-1.5 px-2 text-center bg-slate-50">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditQuality(spec)}
-                          className="px-2.5 py-1 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded text-[11px] flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                          title={`Edit Target Quality untuk ${spec.productType}`}
-                        >
-                          <Edit3 className="w-3 h-3" />
-                          <span>Edit</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeletingQualitySpec(spec)}
-                          className="px-2.5 py-1 bg-[#E31E24] hover:bg-red-700 text-white font-bold rounded text-[11px] flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                          title={`Hapus Target Quality ${spec.productType}`}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          <span>Hapus</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      {/* H2O */}
+                      <td className="p-0 border-r border-slate-300 bg-blue-50/20">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={spec.moistureH2O.std ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'moistureH2O', 'std', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={spec.moistureH2O.max ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'moistureH2O', 'max', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+
+                      {/* SO3 */}
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={spec.so3.min ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'so3', 'min', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="p-0 border-r border-slate-300 bg-sky-50/20">
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={spec.so3.std ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'so3', 'std', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono font-bold text-[#0284C7] bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={spec.so3.max ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'so3', 'max', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+
+                      {/* F-CaO */}
+                      <td className="p-0 border-r border-slate-300 bg-amber-50/20">
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={spec.freelimeFCaO.std ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'freelimeFCaO', 'std', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono font-bold text-amber-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={spec.freelimeFCaO.max ?? ''}
+                          onChange={(e) => handleQualitySpecChange(prod, 'freelimeFCaO', 'max', e.target.value)}
+                          className="w-14 px-1.5 py-1.5 text-right font-mono text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+                      <td className="py-1.5 px-2 text-center bg-slate-50">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditQuality({ ...spec, millType: activeQualityMill, productType: prod })}
+                            className="px-3 py-1 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded text-[11px] flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                            title={`Edit Target Quality untuk ${prod} (${activeQualityMill})`}
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -973,42 +969,49 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       )}
 
       {/* ============================================================== */}
-      {/* SUB-TAB 3: MASTER CGA (CEMENT GRINDING AID) */}
+      {/* SUB-TAB 3: MASTER CGA (MENGACU PADA MASTER TARGET DRY) */}
       {/* ============================================================== */}
       {activeSubTab === 'cga' && (
         <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
-            {/* Pemisahan Sub-tabel Mandiri: Master CGA TM vs VRM (Poin II.3) */}
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
+            {/* Elongated & Dynamic Sub-tabel Switcher: Master CGA TM vs VRM */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200 border-2 border-slate-400 rounded-xl w-full lg:w-auto lg:min-w-[460px] xl:min-w-[520px] shadow-inner shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveCgaMill('TM')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                   activeCgaMill === 'TM'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md border border-amber-700 scale-[1.01]'
+                    : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
                 }`}
               >
-                <span>Master CGA TM</span>
+                <Factory className={`w-4 h-4 shrink-0 ${activeCgaMill === 'TM' ? 'text-white' : 'text-amber-600'}`} />
+                <span>MASTER CGA — TM</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveCgaMill('VRM')}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                   activeCgaMill === 'VRM'
-                    ? 'bg-[#0284C7] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                    ? 'bg-gradient-to-r from-[#0284C7] to-sky-700 text-white shadow-md border border-sky-800 scale-[1.01]'
+                    : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
                 }`}
               >
-                <span>Master CGA VRM</span>
+                <Factory className={`w-4 h-4 shrink-0 ${activeCgaMill === 'VRM' ? 'text-white' : 'text-[#0284C7]'}`} />
+                <span>MASTER CGA — VRM</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-2 bg-emerald-50 border border-emerald-300 text-emerald-900 text-[11px] font-bold rounded-lg flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5 text-[#16A34A]" />
+                <span>Referensi Produk: Master Target Dry ({activeCgaMill})</span>
+              </span>
+
               <button
                 type="button"
                 onClick={() => setShowAddCgaModal(true)}
-                className="px-3.5 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm flex items-center gap-1.5"
+                className="px-3.5 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Tambah Jenis CGA</span>
@@ -1017,10 +1020,10 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
               <button
                 type="button"
                 onClick={handleSaveCga}
-                className="px-4 py-2 text-xs font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <Save className="w-4 h-4" />
-                <span>Simpan Master CGA</span>
+                <span>Simpan Master CGA ({activeCgaMill})</span>
               </button>
             </div>
           </div>
@@ -1029,54 +1032,62 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
             <table className="w-full text-left border-collapse text-xs font-mono">
               <thead>
                 <tr className="bg-slate-700 text-white font-bold border-b border-slate-500">
-                  <th className="py-2.5 px-3 border-r border-slate-500 w-44 font-sans">PRODUK SEMEN</th>
+                  <th className="py-2.5 px-3 border-r border-slate-500 w-44 font-sans">PRODUK SEMEN ({activeCgaMill})</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 w-44">MEREK / JENIS CGA</th>
                   <th className="py-2.5 px-3 border-r border-slate-500 w-32 text-right">DOSIS STANDAR (PPM)</th>
                   <th className="py-2.5 px-3 font-sans">KETERANGAN TEKNIS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
-                {cgaSettings
-                  .filter(cga => !cga.millType || cga.millType === activeCgaMill)
-                  .map((cga) => (
-                  <tr key={cga.id} className="hover:bg-slate-50">
-                    <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900 bg-slate-50">
-                      {cga.productType}
-                    </td>
+                {referenceCgaProducts.map((prod) => {
+                  const cga =
+                    cgaSettings.find(
+                      (c) => c.millType === activeCgaMill && c.productType.toUpperCase().trim() === prod.toUpperCase().trim()
+                    ) ||
+                    cgaSettings.find((c) => c.productType.toUpperCase().trim() === prod.toUpperCase().trim());
 
-                    <td className="p-0 border-r border-slate-300">
-                      <select
-                        value={cga.cgaBrand}
-                        onChange={(e) => handleCgaChange(cga.id, 'cgaBrand', e.target.value)}
-                        className="w-full p-2 bg-transparent border-0 font-mono font-bold text-slate-900 focus:bg-white focus:outline-none"
-                      >
-                        {cgaBrands.map(b => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
-                      </select>
-                    </td>
+                  if (!cga) return null;
 
-                    <td className="p-0 border-r border-slate-300">
-                      <input
-                        type="number"
-                        step="10"
-                        value={cga.dosagePpm}
-                        onChange={(e) => handleCgaChange(cga.id, 'dosagePpm', e.target.value)}
-                        className="w-full px-2 py-2 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
-                      />
-                    </td>
+                  return (
+                    <tr key={cga.id || `${activeCgaMill}_${prod}`} className="hover:bg-slate-50">
+                      <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900 bg-slate-50">
+                        {prod}
+                      </td>
 
-                    <td className="p-0 font-sans">
-                      <input
-                        type="text"
-                        value={cga.notes || ''}
-                        onChange={(e) => handleCgaChange(cga.id, 'notes', e.target.value)}
-                        placeholder="Catatan fungsi..."
-                        className="w-full px-2.5 py-2 text-slate-800 bg-transparent border-0 excel-cell-input focus:bg-white text-xs"
-                      />
-                    </td>
-                  </tr>
-                ))}
+                      <td className="p-0 border-r border-slate-300">
+                        <select
+                          value={cga.cgaBrand}
+                          onChange={(e) => handleCgaChange(cga.id, 'cgaBrand', e.target.value)}
+                          className="w-full p-2 bg-transparent border-0 font-mono font-bold text-slate-900 focus:bg-white focus:outline-none cursor-pointer"
+                        >
+                          {cgaBrands.map(b => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                        </select>
+                      </td>
+
+                      <td className="p-0 border-r border-slate-300">
+                        <input
+                          type="number"
+                          step="10"
+                          value={cga.dosagePpm}
+                          onChange={(e) => handleCgaChange(cga.id, 'dosagePpm', e.target.value)}
+                          className="w-full px-2 py-2 text-right font-mono font-bold text-slate-900 bg-transparent border-0 excel-cell-input focus:bg-white"
+                        />
+                      </td>
+
+                      <td className="p-0 font-sans">
+                        <input
+                          type="text"
+                          value={cga.notes || ''}
+                          onChange={(e) => handleCgaChange(cga.id, 'notes', e.target.value)}
+                          placeholder="Catatan fungsi..."
+                          className="w-full px-2.5 py-2 text-slate-800 bg-transparent border-0 excel-cell-input focus:bg-white text-xs"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -266,46 +266,177 @@ export function addNewProductType(
 }
 
 // ==========================================
-// Quality Specs & CGA Master Settings
+// Quality Specs & CGA Master Settings (Referencing Master Target Dry Proporsi)
 // ==========================================
 
+export function syncQualitySpecsWithTargets(
+  targets: MasterTargetDryMap,
+  rawSpecs: ProductQualitySpec[]
+): ProductQualitySpec[] {
+  const result: ProductQualitySpec[] = [];
+  const millConfigs: Array<{ millCode: 'TM' | 'VRM'; millKey: 'Tube Mill (TM)' | 'Vertical Roller Mill (VRM)' }> = [
+    { millCode: 'TM', millKey: 'Tube Mill (TM)' },
+    { millCode: 'VRM', millKey: 'Vertical Roller Mill (VRM)' },
+  ];
+
+  for (const { millCode, millKey } of millConfigs) {
+    const products = Object.keys(targets?.[millKey] || {});
+    for (const prod of products) {
+      const targetUpper = prod.toUpperCase().trim();
+      const exactMatch = rawSpecs.find(
+        (s) => s.millType === millCode && s.productType.toUpperCase().trim() === targetUpper
+      );
+      if (exactMatch) {
+        result.push({
+          ...exactMatch,
+          id: exactMatch.id || `qs_${millCode.toLowerCase()}_${prod.replace(/\s+/g, '_').toLowerCase()}`,
+          millType: millCode,
+          productType: prod,
+        });
+        continue;
+      }
+
+      const fallbackMatch =
+        rawSpecs.find(
+          (s) => (!s.millType || (s.millType as string) === 'BOTH') && s.productType.toUpperCase().trim() === targetUpper
+        ) ||
+        rawSpecs.find((s) => s.productType.toUpperCase().trim() === targetUpper) ||
+        DEFAULT_QUALITY_SPECS.find(
+          (s) => s.millType === millCode && s.productType.toUpperCase().trim() === targetUpper
+        ) ||
+        DEFAULT_QUALITY_SPECS.find((s) => s.productType.toUpperCase().trim() === targetUpper);
+
+      if (fallbackMatch) {
+        result.push({
+          ...JSON.parse(JSON.stringify(fallbackMatch)),
+          id: `qs_${millCode.toLowerCase()}_${prod.replace(/\s+/g, '_').toLowerCase()}`,
+          millType: millCode,
+          productType: prod,
+        });
+      } else {
+        const isOpc = targetUpper.includes('OPC');
+        result.push({
+          id: `qs_${millCode.toLowerCase()}_${prod.replace(/\s+/g, '_').toLowerCase()}`,
+          millType: millCode,
+          productType: prod,
+          blaine: isOpc ? { min: 3700, max: 3900, std: 3800 } : { min: 4700, max: 4900, std: 4800 },
+          residuR45: isOpc ? { min: 0, max: 3.5, std: 0 } : { min: 0, max: 5.0, std: 0 },
+          moistureH2O: { min: 0.05, max: 0.30, std: 0.15 },
+          so3: isOpc ? { min: 2.00, max: 2.20, std: 2.10 } : { min: 1.60, max: 1.80, std: 1.70 },
+          freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
+export function syncCgaSettingsWithTargets(
+  targets: MasterTargetDryMap,
+  rawCga: CgaMasterSetting[]
+): CgaMasterSetting[] {
+  const result: CgaMasterSetting[] = [];
+  const millConfigs: Array<{ millCode: 'TM' | 'VRM'; millKey: 'Tube Mill (TM)' | 'Vertical Roller Mill (VRM)' }> = [
+    { millCode: 'TM', millKey: 'Tube Mill (TM)' },
+    { millCode: 'VRM', millKey: 'Vertical Roller Mill (VRM)' },
+  ];
+
+  for (const { millCode, millKey } of millConfigs) {
+    const products = Object.keys(targets?.[millKey] || {});
+    for (const prod of products) {
+      const targetUpper = prod.toUpperCase().trim();
+      const exactMatch = rawCga.find(
+        (c) => c.millType === millCode && c.productType.toUpperCase().trim() === targetUpper
+      );
+      if (exactMatch) {
+        result.push({
+          ...exactMatch,
+          id: exactMatch.id || `cga_${millCode.toLowerCase()}_${prod.replace(/\s+/g, '_').toLowerCase()}`,
+          millType: millCode,
+          productType: prod,
+        });
+        continue;
+      }
+
+      const fallbackMatch =
+        rawCga.find((c) => !c.millType && c.productType.toUpperCase().trim() === targetUpper) ||
+        rawCga.find((c) => c.productType.toUpperCase().trim() === targetUpper) ||
+        DEFAULT_CGA_SETTINGS.find(
+          (c) => c.millType === millCode && c.productType.toUpperCase().trim() === targetUpper
+        ) ||
+        DEFAULT_CGA_SETTINGS.find((c) => c.productType.toUpperCase().trim() === targetUpper);
+
+      if (fallbackMatch) {
+        result.push({
+          ...fallbackMatch,
+          id: `cga_${millCode.toLowerCase()}_${prod.replace(/\s+/g, '_').toLowerCase()}`,
+          millType: millCode,
+          productType: prod,
+        });
+      } else {
+        result.push({
+          id: `cga_${millCode.toLowerCase()}_${prod.replace(/\s+/g, '_').toLowerCase()}`,
+          millType: millCode,
+          productType: prod,
+          cgaBrand: 'SIKA',
+          dosagePpm: 400,
+          notes: `Standar CGA ${millCode}`,
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
 export function getStoredQualitySpecs(): ProductQualitySpec[] {
+  const targets = getStoredMasterTargets();
   try {
     const data = localStorage.getItem(STORAGE_KEYS.QUALITY_SPECS);
     if (data) {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return syncQualitySpecsWithTargets(targets, parsed);
+      }
     }
   } catch (err) {
     console.error('Failed to load quality specs:', err);
   }
-  return DEFAULT_QUALITY_SPECS;
+  return syncQualitySpecsWithTargets(targets, DEFAULT_QUALITY_SPECS);
 }
 
 export function saveStoredQualitySpecs(specs: ProductQualitySpec[]): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.QUALITY_SPECS, JSON.stringify(specs));
+    const targets = getStoredMasterTargets();
+    const synced = syncQualitySpecsWithTargets(targets, specs);
+    localStorage.setItem(STORAGE_KEYS.QUALITY_SPECS, JSON.stringify(synced));
   } catch (err) {
     console.error('Failed to save quality specs:', err);
   }
 }
 
 export function getStoredCgaSettings(): CgaMasterSetting[] {
+  const targets = getStoredMasterTargets();
   try {
     const data = localStorage.getItem(STORAGE_KEYS.CGA_SETTINGS);
     if (data) {
       const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return syncCgaSettingsWithTargets(targets, parsed);
+      }
     }
   } catch (err) {
     console.error('Failed to load CGA settings:', err);
   }
-  return DEFAULT_CGA_SETTINGS;
+  return syncCgaSettingsWithTargets(targets, DEFAULT_CGA_SETTINGS);
 }
 
 export function saveStoredCgaSettings(settings: CgaMasterSetting[]): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.CGA_SETTINGS, JSON.stringify(settings));
+    const targets = getStoredMasterTargets();
+    const synced = syncCgaSettingsWithTargets(targets, settings);
+    localStorage.setItem(STORAGE_KEYS.CGA_SETTINGS, JSON.stringify(synced));
   } catch (err) {
     console.error('Failed to save CGA settings:', err);
   }

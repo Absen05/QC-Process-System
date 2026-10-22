@@ -31,6 +31,7 @@ export function exportShiftToExcel(session: ShiftSession): void {
   ]);
   millRows.push([
     'Jam',
+    'Type (PCC/OPC)',
     'Blaine (cm²/gr)',
     'R45 (%)',
     'H2O (%)',
@@ -44,6 +45,7 @@ export function exportShiftToExcel(session: ShiftSession): void {
   session.tm.hourlyRows.forEach(r => {
     millRows.push([
       r.hour,
+      r.productType || (r.proporsiDisplay ? session.tm.productType : '') || '',
       r.blaine !== null && r.blaine !== undefined ? r.blaine : '',
       r.residuR45 !== null && r.residuR45 !== undefined ? r.residuR45 : '',
       r.moistureH2O !== null && r.moistureH2O !== undefined ? r.moistureH2O : '',
@@ -68,6 +70,7 @@ export function exportShiftToExcel(session: ShiftSession): void {
   ]);
   millRows.push([
     'Jam',
+    'Type (PCC/OPC)',
     'Blaine (cm²/gr)',
     'R45 (%)',
     'H2O (%)',
@@ -81,6 +84,7 @@ export function exportShiftToExcel(session: ShiftSession): void {
   session.vrm.hourlyRows.forEach(r => {
     millRows.push([
       r.hour,
+      r.productType || (r.proporsiDisplay ? session.vrm.productType : '') || '',
       r.blaine !== null && r.blaine !== undefined ? r.blaine : '',
       r.residuR45 !== null && r.residuR45 !== undefined ? r.residuR45 : '',
       r.moistureH2O !== null && r.moistureH2O !== undefined ? r.moistureH2O : '',

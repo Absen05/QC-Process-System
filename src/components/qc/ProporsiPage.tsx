@@ -491,16 +491,36 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
     );
 
-    const versionNum = existingValidHistory.length + 1;
-    const newPropId = `prop_${selectedMillCode.toLowerCase()}_v${versionNum}_${Date.now()}`;
+    const appliedIndex = currentMillData.hourlyRows.findIndex((r) => r.hour === appliedHour);
+    const startIdx = appliedIndex !== -1 ? appliedIndex : 0;
+    const prevHourLabel =
+      startIdx > 0 ? currentMillData.hourlyRows[startIdx - 1]?.hour || appliedHour : appliedHour;
     const lastHourLabel = currentMillData.hourlyRows[currentMillData.hourlyRows.length - 1]?.hour || 'Selesai';
+
+    // Pertahankan riwayat proporsi yang berlaku pada jam sebelum appliedHour (jika analis mengganti di jam yang sama, perbarui entri jam tersebut)
+    const priorHistory = existingValidHistory.filter((p) => {
+      const pIdx = currentMillData.hourlyRows.findIndex((r) => r.hour === p.appliedAtHour);
+      return pIdx !== -1 && pIdx < startIdx;
+    });
+
+    const versionNum = priorHistory.length + 1;
+    const newPropId = `prop_${selectedMillCode.toLowerCase()}_v${versionNum}_${Date.now()}`;
     const newPropLabel = `Proporsi ${versionNum} (${appliedHour} - ${lastHourLabel})`;
 
-    const updatedHistory = existingValidHistory.map((p, idx) => {
-      if (idx === existingValidHistory.length - 1) {
-        return { ...p, endAtHour: appliedHour };
+    const updatedHistory = priorHistory.map((p, idx) => {
+      if (idx === priorHistory.length - 1) {
+        const updatedEnd = prevHourLabel;
+        return {
+          ...p,
+          versionNumber: idx + 1,
+          endAtHour: updatedEnd,
+          label: `Proporsi ${idx + 1} (${p.appliedAtHour} - ${updatedEnd})`,
+        };
       }
-      return p;
+      return {
+        ...p,
+        versionNumber: idx + 1,
+      };
     });
 
     const newProp: ProporsiConfig = {
@@ -530,10 +550,6 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
 
     updatedHistory.push(newProp);
 
-    // Update hourly rows mulai dari jam berlaku yang dipilih
-    const appliedIndex = currentMillData.hourlyRows.findIndex((r) => r.hour === appliedHour);
-    const startIdx = appliedIndex !== -1 ? appliedIndex : 0;
-
     const propSummaryParts: string[] = [];
     if (calculation.clinker.dry > 0) propSummaryParts.push(`${calculation.clinker.dry}% Clk`);
     if (calculation.gypsum.dry > 0) propSummaryParts.push(`${calculation.gypsum.dry}% Gyp`);
@@ -547,6 +563,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       if (idx >= startIdx) {
         return {
           ...row,
+          productType,
           proporsiVersionId: newPropId,
           proporsiDisplay: propSummary,
           admixtureDisplay: admSummary,
@@ -576,7 +593,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     onUpdateSession(updatedSession);
     saveCloudSession(updatedSession);
 
-    alert(`✅ Proporsi untuk ${selectedMillCode} [${newPropLabel}] berhasil disimpan & diaktifkan mulai jam ${appliedHour}!`);
+    alert(`✅ Proporsi untuk ${selectedMillCode} [${newPropLabel}] (${productType}) berhasil disimpan & diaktifkan mulai jam ${appliedHour}!`);
   };
 
   // Generate CCR Image via HTML5 Canvas renderer
@@ -676,33 +693,33 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           
-          {/* Dual-Mill Switcher for Setting Proporsi */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-200 border-2 border-slate-400 rounded-lg shrink-0">
+          {/* Elongated & Dynamic Dual-Mill Switcher for Setting Proporsi */}
+          <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200 border-2 border-slate-400 rounded-xl w-full lg:w-auto lg:min-w-[440px] xl:min-w-[500px] shadow-inner shrink-0">
             <button
               type="button"
               onClick={() => setSelectedMillCode('TM')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                 selectedMillCode === 'TM'
-                  ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
-                  : 'text-slate-700 hover:text-slate-900'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md border border-amber-700 scale-[1.01]'
+                  : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
               }`}
             >
-              <Factory className="w-4 h-4 text-amber-600" />
-              <span>TM</span>
+              <Factory className={`w-4 h-4 shrink-0 ${selectedMillCode === 'TM' ? 'text-white' : 'text-amber-600'}`} />
+              <span>TUBE MILL (TM)</span>
             </button>
             <button
               type="button"
               onClick={() => setSelectedMillCode('VRM')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                 selectedMillCode === 'VRM'
-                  ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
-                  : 'text-slate-700 hover:text-slate-900'
+                  ? 'bg-gradient-to-r from-[#0284C7] to-sky-700 text-white shadow-md border border-sky-800 scale-[1.01]'
+                  : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
               }`}
             >
-              <Factory className="w-4 h-4 text-[#0284C7]" />
-              <span>VRM</span>
+              <Factory className={`w-4 h-4 shrink-0 ${selectedMillCode === 'VRM' ? 'text-white' : 'text-[#0284C7]'}`} />
+              <span>VERTICAL MILL (VRM)</span>
             </button>
           </div>
 

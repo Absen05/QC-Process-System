@@ -224,6 +224,7 @@ export function createInitialMillData(
 
   const hourlyRows = hours.map((hour) => ({
     hour,
+    productType: undefined,
     blaine: null,
     residuR45: null,
     moistureH2O: null,
@@ -264,6 +265,7 @@ export function sanitizeMillSessionData(mill: MillSessionData): MillSessionData 
   if (validHistory.length === 0) {
     const cleanedRows = (mill.hourlyRows || []).map((r) => ({
       ...r,
+      productType: undefined,
       proporsiVersionId: undefined,
       proporsiDisplay: '',
       admixtureDisplay: '',
@@ -291,6 +293,19 @@ export function sanitizeMillSessionData(mill: MillSessionData): MillSessionData 
   }
 
   const latestProp = validHistory[validHistory.length - 1];
+  const syncedRows = (mill.hourlyRows || []).map((r) => {
+    if (r.proporsiVersionId) {
+      const matched = validHistory.find((p) => p.id === r.proporsiVersionId);
+      if (matched) {
+        return {
+          ...r,
+          productType: r.productType || matched.productType,
+        };
+      }
+    }
+    return r;
+  });
+
   return {
     ...mill,
     productType: latestProp.productType || mill.productType,
@@ -299,6 +314,7 @@ export function sanitizeMillSessionData(mill: MillSessionData): MillSessionData 
     admixtureName: latestProp.admixtureName || mill.admixtureName,
     admixturePpm: latestProp.admixturePpm ?? mill.admixturePpm,
     proporsiHistory: validHistory,
+    hourlyRows: syncedRows,
   };
 }
 

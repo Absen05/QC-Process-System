@@ -89,15 +89,28 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
         if (!isProportionActive) {
           return {
             ...existing,
+            productType: undefined,
             proporsiVersionId: undefined,
             proporsiDisplay: '',
             admixtureDisplay: '',
           };
         }
-        return existing;
+        const matchedProp = existing.proporsiVersionId
+          ? validProporsiHistory.find((p) => p.id === existing.proporsiVersionId)
+          : undefined;
+        const resolvedProduct =
+          existing.productType ||
+          matchedProp?.productType ||
+          (existing.proporsiDisplay ? lockedProductType : undefined);
+
+        return {
+          ...existing,
+          productType: resolvedProduct,
+        };
       }
       return {
         hour,
+        productType: undefined,
         blaine: null,
         residuR45: null,
         moistureH2O: null,
@@ -109,7 +122,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
         notes: undefined,
       };
     });
-  }, [activeMillData.hourlyRows, shiftHours, isProportionActive]);
+  }, [activeMillData.hourlyRows, shiftHours, isProportionActive, validProporsiHistory, lockedProductType]);
 
   const isMillRunningAuto = useMemo(() => {
     return effectiveRows.some(
@@ -227,7 +240,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     const updatedRows = [...effectiveRows];
     const currentRow = { ...updatedRows[index] };
 
-    if (field === 'notes' || field === 'proporsiDisplay' || field === 'admixtureDisplay') {
+    if (field === 'notes' || field === 'proporsiDisplay' || field === 'admixtureDisplay' || field === 'productType') {
       (currentRow[field] as any) = value;
     } else {
       if (value === '' || value === null || value === undefined) {
@@ -357,7 +370,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
         if (colKey === 'notes') {
           rowData.notes = trimmed || undefined;
           upsertCloudCell(session.date, session.shiftName, activeMillTab, rowData.hour, 'notes', trimmed);
-        } else if (colKey === 'proporsiDisplay' || colKey === 'admixtureDisplay' || colKey === 'hour') {
+        } else if (colKey === 'proporsiDisplay' || colKey === 'admixtureDisplay' || colKey === 'productType' || colKey === 'hour') {
           // skip read-only display fields
         } else {
           if (trimmed === '') {
@@ -402,38 +415,56 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
 
       {/* Dual-Mill Switcher Bar & Mill Status Controls */}
       <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           
-          {/* Sub-Tab Switcher: TM terlebih dahulu, kemudian VRM */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-200 border-2 border-slate-400 rounded-lg shrink-0">
+          {/* Elongated & Dynamic Sub-Tab Switcher: TM & VRM */}
+          <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200 border-2 border-slate-400 rounded-xl w-full lg:w-auto lg:min-w-[440px] xl:min-w-[500px] shadow-inner shrink-0">
             <button
+              type="button"
               onClick={() => setActiveMillTab('TM')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                 activeMillTab === 'TM'
-                  ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
-                  : 'text-slate-700 hover:text-slate-900'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md border border-amber-700 scale-[1.01]'
+                  : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
               }`}
             >
-              <Factory className="w-4 h-4 text-amber-600" />
-              <span>TM</span>
-              <span className={`w-2 h-2 rounded-full ${session.tm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-400'}`} />
+              <Factory className={`w-4 h-4 shrink-0 ${activeMillTab === 'TM' ? 'text-white' : 'text-amber-600'}`} />
+              <span>TUBE MILL (TM)</span>
+              <span
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  session.tm.isRunning
+                    ? 'bg-emerald-400 ring-2 ring-white animate-pulse'
+                    : activeMillTab === 'TM'
+                    ? 'bg-amber-200/70'
+                    : 'bg-slate-400'
+                }`}
+              />
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveMillTab('VRM')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2.5 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer ${
                 activeMillTab === 'VRM'
-                  ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
-                  : 'text-slate-700 hover:text-slate-900'
+                  ? 'bg-gradient-to-r from-[#0284C7] to-sky-700 text-white shadow-md border border-sky-800 scale-[1.01]'
+                  : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-300'
               }`}
             >
-              <Factory className="w-4 h-4 text-[#0284C7]" />
-              <span>VRM</span>
-              <span className={`w-2 h-2 rounded-full ${session.vrm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-400'}`} />
+              <Factory className={`w-4 h-4 shrink-0 ${activeMillTab === 'VRM' ? 'text-white' : 'text-[#0284C7]'}`} />
+              <span>VERTICAL MILL (VRM)</span>
+              <span
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  session.vrm.isRunning
+                    ? 'bg-emerald-400 ring-2 ring-white animate-pulse'
+                    : activeMillTab === 'VRM'
+                    ? 'bg-sky-200/70'
+                    : 'bg-slate-400'
+                }`}
+              />
             </button>
           </div>
 
-          {/* Right Status Controls: Deteksi Running Otomatis, Read-only Product & Silo Badges & Ekspor Excel */}
+          {/* Right Status Controls: Deteksi Running Otomatis, Read-only Silo Badge & Ekspor Excel */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <div
               className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 shadow-2xs select-none ${
@@ -454,14 +485,6 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                   <span>STATUS: STANDBY</span>
                 </>
               )}
-            </div>
-
-            {/* Read-Only Badge: Jenis Produk Paten */}
-            <div className="px-3 py-1.5 font-bold bg-slate-100 border-2 border-slate-300 rounded-lg text-slate-800 text-xs flex items-center gap-1.5 select-none">
-              <span className="text-slate-500 uppercase text-[10px]">Produk:</span>
-              <span className={`font-mono font-bold ${isProportionActive && lockedProductType ? 'text-slate-900' : 'text-amber-700 italic'}`}>
-                {isProportionActive && lockedProductType ? lockedProductType : 'BELUM AKTIF'}
-              </span>
             </div>
 
             {/* Read-Only Badge: Silo Paten */}
@@ -515,6 +538,10 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
               <tr className="bg-slate-700 text-white font-bold border-b-2 border-slate-500 select-none">
                 <th className="py-2.5 px-3 border-r border-slate-500 w-20 text-center align-middle font-mono sticky left-0 bg-slate-800 z-10 text-white font-bold">
                   JAM
+                </th>
+
+                <th className="py-2.5 px-3 border-r border-slate-500 w-36 text-center align-middle bg-slate-800 text-amber-300 font-bold">
+                  TYPE (PCC/OPC)
                 </th>
 
                 <th className="py-2 px-3 border-r border-slate-500 w-28 text-center align-middle bg-slate-700">
@@ -571,6 +598,9 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
             </thead>
             <tbody className="font-mono divide-y divide-slate-300">
               {effectiveRows.map((row, idx) => {
+                const rowType = isProportionActive && row.productType ? row.productType : '';
+                const isOpcType = rowType.toUpperCase().includes('OPC');
+
                 return (
                   <tr 
                     key={row.hour}
@@ -579,6 +609,23 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                     {/* Waktu / Jam (Sticky) */}
                     <td className="py-1 px-2 border-r border-slate-300 text-center font-bold text-slate-900 bg-slate-100 sticky left-0 z-10 shadow-[1px_0_0_0_#94a3b8]">
                       {row.hour}
+                    </td>
+
+                    {/* TYPE (PCC/OPC) Sesuai Proporsi yang Diaktifkan */}
+                    <td className="py-1.5 px-2.5 border-r border-slate-300 text-center bg-slate-50/80 select-none">
+                      {rowType ? (
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded font-bold text-[11px] border ${
+                            isOpcType
+                              ? 'bg-amber-100 text-amber-900 border-amber-400'
+                              : 'bg-sky-100 text-sky-900 border-sky-400'
+                          }`}
+                        >
+                          {rowType}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
 
                     {/* Blaine */}
@@ -716,6 +763,9 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                     <Calculator className="w-3.5 h-3.5 text-[#0284C7]" />
                     <span>RATA-RATA</span>
                   </div>
+                </td>
+                <td className="py-2 px-2 border-r border-slate-300 text-center font-mono text-[11px] text-slate-700 bg-slate-100">
+                  {isProportionActive && lockedProductType ? lockedProductType : '—'}
                 </td>
                 <td className="py-2 px-2 border-r border-slate-300 text-right font-mono text-xs text-slate-900">
                   {averages.blaine}

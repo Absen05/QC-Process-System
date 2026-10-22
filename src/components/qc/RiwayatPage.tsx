@@ -223,6 +223,7 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
                     <thead>
                       <tr className="bg-slate-600 text-white font-bold border-b border-slate-500">
                         <th className="py-2 px-3 border-r border-slate-500 w-16 text-center">JAM</th>
+                        <th className="py-2 px-3 border-r border-slate-500 w-32 text-center bg-slate-700 text-amber-300">TYPE (PCC/OPC)</th>
                         <th className="py-2 px-3 border-r border-slate-500 w-24 text-right">BLAINE</th>
                         <th className="py-2 px-3 border-r border-slate-500 w-24 text-right">R45 (%)</th>
                         <th className="py-2 px-3 border-r border-slate-500 w-24 text-right">H2O (%)</th>
@@ -238,6 +239,9 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
                         <tr key={row.hour} className="hover:bg-slate-50">
                           <td className="py-1.5 px-3 border-r border-slate-300 text-center font-bold bg-slate-100 text-slate-900">
                             {row.hour}
+                          </td>
+                          <td className="py-1.5 px-3 border-r border-slate-300 text-center font-bold text-slate-800 bg-slate-50">
+                            {row.productType || (row.proporsiDisplay ? mill.productType : '') || '-'}
                           </td>
                           <td className="py-1.5 px-3 border-r border-slate-300 text-right font-bold text-slate-900">
                             {row.blaine !== null ? row.blaine : '-'}

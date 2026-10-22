@@ -419,82 +419,124 @@ function formatDryPropParts(materials: any, admixtureName?: string, admixturePpm
 }
 
 function renderCleanMillBlock(mill: MillSessionData): string {
-  const header = `*${mill.millCode} ${mill.productType} ${mill.siloName}*`;
-  const allRows = mill.hourlyRows;
+  const allRows = mill.hourlyRows || [];
+  const validProps = (mill.proporsiHistory || []).filter(
+    (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
+  );
 
-  // Pemisahan Draft Proporsi & Rata-rata Sesuai Jam (Poin 4: jika ada perubahan proporsi di tengah shift)
-  if (mill.proporsiHistory && mill.proporsiHistory.length > 1) {
+  // JIKA ADA PERUBAHAN PROPORSI (validProps.length > 1):
+  // Berikan JUDUL TERPISAH dan JUDUL TERSENDIRI dari masing-masing proporsi sesuai dengan jam perubahan!
+  if (validProps.length > 1) {
     const subBlocks: string[] = [];
-    const props = mill.proporsiHistory;
 
-    for (let i = 0; i < props.length; i++) {
-      const prop = props[i];
+    for (let i = 0; i < validProps.length; i++) {
+      const prop = validProps[i];
       const startHour = prop.appliedAtHour || allRows[0]?.hour || '08:00';
-      const nextProp = props[i + 1];
+      const nextProp = validProps[i + 1];
 
-      // Tentukan rentang baris jam untuk proporsi ini
-      const startIdx = allRows.findIndex(r => r.hour === startHour);
-      let endIdx = allRows.length - 1;
+      // Cari baris jam yang terikat dengan proporsi ini
+      let intervalRows = allRows.filter((r) => r.proporsiVersionId === prop.id);
 
-      if (nextProp && nextProp.appliedAtHour) {
-        const nextIdx = allRows.findIndex(r => r.hour === nextProp.appliedAtHour);
-        if (nextIdx > 0) {
-          endIdx = nextIdx - 1;
+      if (intervalRows.length === 0) {
+        const startIdx = allRows.findIndex((r) => r.hour === startHour);
+        let endIdx = allRows.length - 1;
+
+        if (nextProp && nextProp.appliedAtHour) {
+          const nextIdx = allRows.findIndex((r) => r.hour === nextProp.appliedAtHour);
+          if (nextIdx > 0) {
+            endIdx = nextIdx - 1;
+          }
         }
+
+        const effectiveStartIdx = startIdx !== -1 ? startIdx : 0;
+        const effectiveEndIdx = Math.max(effectiveStartIdx, endIdx);
+        intervalRows = allRows.slice(effectiveStartIdx, effectiveEndIdx + 1);
       }
 
-      const effectiveStartIdx = startIdx !== -1 ? startIdx : 0;
-      const effectiveEndIdx = Math.max(effectiveStartIdx, endIdx);
-      const intervalRows = allRows.slice(effectiveStartIdx, effectiveEndIdx + 1);
+      const firstH = intervalRows[0]?.hour || startHour;
+      const lastH =
+        intervalRows[intervalRows.length - 1]?.hour ||
+        prop.endAtHour ||
+        allRows[allRows.length - 1]?.hour ||
+        firstH;
 
-      if (intervalRows.length === 0) continue;
+      const propProd = prop.productType || mill.productType || 'SEMEN';
+      const propSilo = prop.siloName || mill.siloName || 'SILO';
 
-      const firstH = intervalRows[0].hour;
-      const lastH = intervalRows[intervalRows.length - 1].hour;
-      const intervalLabel = `*(${firstH} - ${lastH})*`;
+      // Judul terpisah & tersendiri untuk masing-masing proporsi sesuai jam perubahan (tanpa embel-embel PROPORSI 1 / 2)
+      const separateHeader = `*${mill.millCode} ${propProd} ${propSilo} (JAM ${firstH} - ${lastH})*`;
 
-      // Hitung rata-rata khusus pada rentang jam proporsi aktif ini
-      const blaineVals = intervalRows.map(r => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
-      const r45Vals = intervalRows.map(r => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
-      const h2oVals = intervalRows.map(r => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
-      const so3Vals = intervalRows.map(r => r.so3).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+      const blaineVals = intervalRows.map((r) => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+      const r45Vals = intervalRows.map((r) => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+      const h2oVals = intervalRows.map((r) => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+      const so3Vals = intervalRows.map((r) => r.so3).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+      const tphVals = intervalRows.map((r) => r.tph).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
 
       const avgBlaine = blaineVals.length > 0 ? Math.round(blaineVals.reduce((a, b) => a + b, 0) / blaineVals.length).toString() : '**';
       const avgR45 = r45Vals.length > 0 ? (r45Vals.reduce((a, b) => a + b, 0) / r45Vals.length).toFixed(2).replace('.', ',') : '**';
       const avgH2O = h2oVals.length > 0 ? (h2oVals.reduce((a, b) => a + b, 0) / h2oVals.length).toFixed(2).replace('.', ',') : '**';
       const avgSO3 = so3Vals.length > 0 ? (so3Vals.reduce((a, b) => a + b, 0) / so3Vals.length).toFixed(2).replace('.', ',') : '**';
+      const avgTph =
+        tphVals.length > 0
+          ? Math.round(tphVals.reduce((a, b) => a + b, 0) / tphVals.length).toString()
+          : prop.tphFeeding
+          ? Math.round(prop.tphFeeding).toString()
+          : mill.tphFeeding
+          ? Math.round(mill.tphFeeding).toString()
+          : '**';
 
-      const propStr = formatDryPropParts(prop.materials, prop.admixtureName || mill.admixtureName, prop.admixturePpm || mill.admixturePpm);
+      const propStr = formatDryPropParts(
+        prop.materials,
+        prop.admixtureName || mill.admixtureName,
+        prop.admixturePpm || mill.admixturePpm
+      );
 
-      subBlocks.push(`${intervalLabel}
+      subBlocks.push(`${separateHeader}
 Blaine : *${avgBlaine}* cm²/gr
 R45 : *${avgR45}*%
 H2O : *${avgH2O}*% 
 SO3 : *${avgSO3}*%
+TPH : *${avgTph}* t/h
 Proportion : ${propStr}`);
     }
 
-    return `${header}\n\n${subBlocks.join('\n\n')}`;
+    return subBlocks.join('\n\n');
   }
 
-  // Jika selama shift berjalan hanya ada 1 proporsi tanpa perubahan
-  const blaineVals = mill.hourlyRows.map(r => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
-  const r45Vals = mill.hourlyRows.map(r => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
-  const h2oVals = mill.hourlyRows.map(r => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
-  const so3Vals = mill.hourlyRows.map(r => r.so3).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
-  const tphVals = mill.hourlyRows.map(r => r.tph).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  // Jika selama shift berjalan hanya ada 1 proporsi aktif (atau belum diaktifkan)
+  const latestProp = validProps.length === 1 ? validProps[0] : null;
+  const activeProd = latestProp?.productType || mill.productType || '';
+  const activeSilo = latestProp?.siloName || mill.siloName || '';
+  const header = activeProd
+    ? `*${mill.millCode} ${activeProd} ${activeSilo}*`.trim()
+    : `*${mill.millCode} (PROPORSI BELUM AKTIF)*`;
+
+  const blaineVals = allRows.map((r) => r.blaine).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  const r45Vals = allRows.map((r) => r.residuR45).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  const h2oVals = allRows.map((r) => r.moistureH2O).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  const so3Vals = allRows.map((r) => r.so3).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  const tphVals = allRows.map((r) => r.tph).filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
 
   const avgBlaine = blaineVals.length > 0 ? Math.round(blaineVals.reduce((a, b) => a + b, 0) / blaineVals.length).toString() : '**';
   const avgR45 = r45Vals.length > 0 ? (r45Vals.reduce((a, b) => a + b, 0) / r45Vals.length).toFixed(2).replace('.', ',') : '**';
   const avgH2O = h2oVals.length > 0 ? (h2oVals.reduce((a, b) => a + b, 0) / h2oVals.length).toFixed(2).replace('.', ',') : '**';
   const avgSO3 = so3Vals.length > 0 ? (so3Vals.reduce((a, b) => a + b, 0) / so3Vals.length).toFixed(2).replace('.', ',') : '**';
-  const avgTph = tphVals.length > 0 ? Math.round(tphVals.reduce((a, b) => a + b, 0) / tphVals.length).toString() : (mill.tphFeeding ? Math.round(mill.tphFeeding).toString() : '**');
+  const avgTph =
+    tphVals.length > 0
+      ? Math.round(tphVals.reduce((a, b) => a + b, 0) / tphVals.length).toString()
+      : latestProp?.tphFeeding
+      ? Math.round(latestProp.tphFeeding).toString()
+      : mill.tphFeeding
+      ? Math.round(mill.tphFeeding).toString()
+      : '**';
 
-  const latestProp = mill.proporsiHistory && mill.proporsiHistory.length > 0 
-    ? mill.proporsiHistory[mill.proporsiHistory.length - 1] 
-    : null;
-
-  const propStr = formatDryPropParts(latestProp?.materials, latestProp?.admixtureName || mill.admixtureName, latestProp?.admixturePpm || mill.admixturePpm);
+  const propStr = latestProp
+    ? formatDryPropParts(
+        latestProp.materials,
+        latestProp.admixtureName || mill.admixtureName,
+        latestProp.admixturePpm || mill.admixturePpm
+      )
+    : '*- (Belum Diaktifkan)*';
 
   return `${header}
 Blaine : *${avgBlaine}* cm²/gr
