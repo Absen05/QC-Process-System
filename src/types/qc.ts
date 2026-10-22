@@ -219,7 +219,7 @@ export type MasterTargetDryMap = Record<
   >
 >;
 
-// Quality Specification standard for each product
+// Quality Specification standard for each product per mill (TM vs VRM)
 export interface QualityParamSpec {
   min: number | null;
   max: number | null;
@@ -227,6 +227,8 @@ export interface QualityParamSpec {
 }
 
 export interface ProductQualitySpec {
+  id?: string;
+  millType?: 'TM' | 'VRM';
   productType: string;
   blaine: QualityParamSpec;
   residuR45: QualityParamSpec;
@@ -235,9 +237,10 @@ export interface ProductQualitySpec {
   freelimeFCaO: QualityParamSpec;
 }
 
-// Master CGA Setting for each product
+// Master CGA Setting for each product per mill (TM vs VRM)
 export interface CgaMasterSetting {
   id: string;
+  millType?: 'TM' | 'VRM';
   productType: string;
   cgaBrand: string; // 'SIKA' | 'CONCH' | 'GCP' | string
   dosagePpm: number;

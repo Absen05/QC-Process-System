@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShiftSession, 
   MillType, 
@@ -10,8 +10,8 @@ import {
 } from '../../types/qc';
 import { calculateWetBase, checkOpcLimestoneWarning, formatIndonesianDateTitleCase } from '../../utils/qcCalculations';
 import { renderCcrImage, dataUrlToBlob } from '../../utils/ccrCanvasRenderer';
-import { getStoredProductList } from '../../services/qcStorage';
-import { saveCloudSession } from '../../services/qcApi';
+import { getStoredProductList, getStoredCgaSettings, getStoredQualitySpecs, saveStoredCgaSettings, saveStoredQualitySpecs } from '../../services/qcStorage';
+import { saveCloudSession, fetchCloudCgaSettings, fetchCloudQualitySpecs } from '../../services/qcApi';
 import { 
   Camera, 
   Save, 
@@ -25,7 +25,7 @@ import {
   X,
   Sliders,
   AlertCircle,
-  AlertTriangle
+  Lock
 } from 'lucide-react';
 
 interface ProporsiPageProps {
@@ -36,75 +36,279 @@ interface ProporsiPageProps {
   onSwitchTab: (tab: any) => void;
 }
 
+interface MillFormState {
+  productType: ProductType;
+  siloName: string;
+  tphCapacity: number;
+  admixtureName: string;
+  admixturePpm: number;
+  bufferMaterial: 'trass' | 'clinker' | 'limestone';
+  appliedHour: string;
+  dryValues: {
+    clinker: number | '';
+    gypsum: number | '';
+    limestone: number | '';
+    trass: number | '';
+    flyAsh: number | '';
+  };
+  h2oValues: {
+    clinker: number | '';
+    gypsum: number | '';
+    limestone: number | '';
+    trass: number | '';
+    flyAsh: number | '';
+  };
+  isUserCustomized: boolean;
+}
+
+function findCgaForMillAndProduct(millCode: 'TM' | 'VRM', prod: string): { cgaBrand: string; dosagePpm: number } {
+  try {
+    const cgaSettings = getStoredCgaSettings();
+    const targetProd = (prod || '').toUpperCase().trim();
+    // 1. Cari yang spesifik sesuai millType ('TM' atau 'VRM')
+    const exactMatch = cgaSettings.find(
+      (c) => c.millType === millCode && c.productType.toUpperCase().trim() === targetProd
+    );
+    if (exactMatch) {
+      return { cgaBrand: exactMatch.cgaBrand, dosagePpm: exactMatch.dosagePpm };
+    }
+    // 2. Fallback ke entri produk yang belum memiliki millType spesifik
+    const fallbackMatch = cgaSettings.find(
+      (c) => (!c.millType || c.millType === millCode) && c.productType.toUpperCase().trim() === targetProd
+    );
+    if (fallbackMatch) {
+      return { cgaBrand: fallbackMatch.cgaBrand, dosagePpm: fallbackMatch.dosagePpm };
+    }
+  } catch (e) {
+    console.error('Error finding CGA setting:', e);
+  }
+  return { cgaBrand: 'SIKA', dosagePpm: 400 };
+}
+
+function getSiStandardDry(
+  masterTargets: MasterTargetDryMap,
+  millCode: 'TM' | 'VRM',
+  productType: string
+): { clinker: number; gypsum: number; limestone: number; trass: number; flyAsh: number } {
+  const millType: MillType = millCode === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)';
+  const millMap = masterTargets?.[millType] || {};
+  const exact = millMap[productType];
+  if (exact) return { ...exact };
+
+  const caseInsensitiveKey = Object.keys(millMap).find(
+    (k) => k.toUpperCase().trim() === (productType || '').toUpperCase().trim()
+  );
+  if (caseInsensitiveKey && millMap[caseInsensitiveKey]) {
+    return { ...millMap[caseInsensitiveKey] };
+  }
+
+  const firstKey = Object.keys(millMap)[0];
+  if (firstKey && millMap[firstKey]) {
+    return { ...millMap[firstKey] };
+  }
+
+  return millCode === 'TM'
+    ? { clinker: 57.8, gypsum: 3.4, limestone: 18.8, trass: 15.0, flyAsh: 5.0 }
+    : { clinker: 57.8, gypsum: 2.8, limestone: 8.0, trass: 26.4, flyAsh: 5.0 };
+}
+
+function buildInitialMillFormState(
+  millCode: 'TM' | 'VRM',
+  session: ShiftSession,
+  masterTargets: MasterTargetDryMap
+): MillFormState {
+  const millType: MillType = millCode === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)';
+  const millData: MillSessionData = millCode === 'TM' ? session.tm : session.vrm;
+  const startHour = millData?.hourlyRows?.[0]?.hour || '08:00';
+
+  // 1. Cek apakah analis sudah pernah mengaktifkan proporsi pada shift ini
+  const validHistory = (millData?.proporsiHistory || []).filter(
+    (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
+  );
+  const latestProp = validHistory.length > 0 ? validHistory[validHistory.length - 1] : null;
+
+  if (latestProp) {
+    const cga = findCgaForMillAndProduct(millCode, latestProp.productType);
+    const bufferMat: 'trass' | 'clinker' | 'limestone' =
+      latestProp.materials.trass.dry === 0 && latestProp.materials.limestone.dry > 0 ? 'limestone' : 'trass';
+
+    return {
+      productType: latestProp.productType,
+      siloName: latestProp.siloName || (millCode === 'TM' ? 'SILO 5' : 'SILO 4'),
+      tphCapacity: latestProp.tphFeeding || millData.tphFeeding || 100.0,
+      admixtureName: latestProp.admixtureName || cga.cgaBrand,
+      admixturePpm: latestProp.admixturePpm ?? cga.dosagePpm,
+      bufferMaterial: bufferMat,
+      appliedHour: latestProp.appliedAtHour || startHour,
+      dryValues: {
+        clinker: latestProp.materials.clinker.dry,
+        gypsum: latestProp.materials.gypsum.dry,
+        limestone: latestProp.materials.limestone.dry,
+        trass: latestProp.materials.trass.dry,
+        flyAsh: latestProp.materials.flyAsh.dry,
+      },
+      h2oValues: {
+        clinker: latestProp.materials.clinker.h2o ?? 0.0,
+        gypsum: session.moistureWf?.gypsum ?? latestProp.materials.gypsum.h2o ?? 2.8,
+        limestone: session.moistureWf?.limestone ?? latestProp.materials.limestone.h2o ?? 7.2,
+        trass: session.moistureWf?.trass ?? latestProp.materials.trass.h2o ?? 4.8,
+        flyAsh: latestProp.materials.flyAsh.h2o ?? 0.0,
+      },
+      isUserCustomized: true,
+    };
+  }
+
+  // 2. Cek apakah ada draft form yang sedang diedit analis pada shift ini di localStorage
+  const draftKey = `qc_proporsi_draft_${session.date}_${session.shiftName}_${millCode}`;
+  try {
+    const rawDraft = localStorage.getItem(draftKey);
+    if (rawDraft) {
+      const parsedDraft = JSON.parse(rawDraft) as MillFormState;
+      if (parsedDraft && parsedDraft.isUserCustomized && parsedDraft.productType) {
+        return parsedDraft;
+      }
+    }
+  } catch (e) {}
+
+  // 3. Jika belum ada proporsi aktif & belum diedit user, ambil 100% dari Master Data SI
+  const millProducts = Object.keys(masterTargets?.[millType] || {});
+  const defaultProduct =
+    millData?.productType && masterTargets?.[millType]?.[millData.productType]
+      ? millData.productType
+      : millProducts[0] || 'PCC Plus FA';
+
+  const siDry = getSiStandardDry(masterTargets, millCode, defaultProduct);
+  const cga = findCgaForMillAndProduct(millCode, defaultProduct);
+  const defaultBuffer: 'trass' | 'clinker' | 'limestone' =
+    siDry.trass === 0 && siDry.limestone > 0 ? 'limestone' : 'trass';
+
+  return {
+    productType: defaultProduct,
+    siloName: millData?.siloName || (millCode === 'TM' ? 'SILO 5' : 'SILO 4'),
+    tphCapacity: millData?.tphFeeding && millData.tphFeeding > 0 ? millData.tphFeeding : 100.0,
+    admixtureName: cga.cgaBrand,
+    admixturePpm: cga.dosagePpm,
+    bufferMaterial: defaultBuffer,
+    appliedHour: startHour,
+    dryValues: { ...siDry },
+    h2oValues: {
+      clinker: 0.0,
+      gypsum: session.moistureWf?.gypsum || 2.8,
+      limestone: session.moistureWf?.limestone || 7.2,
+      trass: session.moistureWf?.trass || 4.8,
+      flyAsh: 0.0,
+    },
+    isUserCustomized: false,
+  };
+}
+
 export const ProporsiPage: React.FC<ProporsiPageProps> = ({
   session,
   masterTargets,
   initialMill = 'TM',
   onUpdateSession,
 }) => {
-  // Mill Selection: TM (Mill 1) or VRM (Mill 2)
   const [selectedMillCode, setSelectedMillCode] = useState<'TM' | 'VRM'>(initialMill);
+
+  // State terisolasi penuh antara TM dan VRM agar berpindah tab/mesin tidak pernah mereset nilai!
+  const [formStateTM, setFormStateTM] = useState<MillFormState>(() =>
+    buildInitialMillFormState('TM', session, masterTargets)
+  );
+  const [formStateVRM, setFormStateVRM] = useState<MillFormState>(() =>
+    buildInitialMillFormState('VRM', session, masterTargets)
+  );
+
+  // Simpan draft ke localStorage setiap kali ada perubahan yang dilakukan user
+  useEffect(() => {
+    try {
+      const keyTM = `qc_proporsi_draft_${session.date}_${session.shiftName}_TM`;
+      localStorage.setItem(keyTM, JSON.stringify(formStateTM));
+    } catch (e) {}
+  }, [formStateTM, session.date, session.shiftName]);
+
+  useEffect(() => {
+    try {
+      const keyVRM = `qc_proporsi_draft_${session.date}_${session.shiftName}_VRM`;
+      localStorage.setItem(keyVRM, JSON.stringify(formStateVRM));
+    } catch (e) {}
+  }, [formStateVRM, session.date, session.shiftName]);
+
+  // Sinkronisasi otomatis apabila Master Data SI dari Supabase baru selesai dimuat dan form belum diubah manual oleh user
+  useEffect(() => {
+    const validTmHistory = (session.tm?.proporsiHistory || []).filter(
+      (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
+    );
+    if (!formStateTM.isUserCustomized && validTmHistory.length === 0) {
+      const siDryTM = getSiStandardDry(masterTargets, 'TM', formStateTM.productType);
+      const cgaTM = findCgaForMillAndProduct('TM', formStateTM.productType);
+      setFormStateTM((prev) => ({
+        ...prev,
+        dryValues: { ...siDryTM },
+        admixtureName: cgaTM.cgaBrand,
+        admixturePpm: cgaTM.dosagePpm,
+        bufferMaterial: siDryTM.trass === 0 && siDryTM.limestone > 0 ? 'limestone' : 'trass',
+      }));
+    }
+
+    const validVrmHistory = (session.vrm?.proporsiHistory || []).filter(
+      (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
+    );
+    if (!formStateVRM.isUserCustomized && validVrmHistory.length === 0) {
+      const siDryVRM = getSiStandardDry(masterTargets, 'VRM', formStateVRM.productType);
+      const cgaVRM = findCgaForMillAndProduct('VRM', formStateVRM.productType);
+      setFormStateVRM((prev) => ({
+        ...prev,
+        dryValues: { ...siDryVRM },
+        admixtureName: cgaVRM.cgaBrand,
+        admixturePpm: cgaVRM.dosagePpm,
+        bufferMaterial: siDryVRM.trass === 0 && siDryVRM.limestone > 0 ? 'limestone' : 'trass',
+      }));
+    }
+  }, [masterTargets]);
+
+  // Sync CGA & Quality Specs dari Supabase saat halaman dibuka
+  useEffect(() => {
+    fetchCloudCgaSettings().then((settings) => {
+      if (settings) {
+        saveStoredCgaSettings(settings);
+        const cgaTM = findCgaForMillAndProduct('TM', formStateTM.productType);
+        const cgaVRM = findCgaForMillAndProduct('VRM', formStateVRM.productType);
+        setFormStateTM((prev) => ({ ...prev, admixtureName: cgaTM.cgaBrand, admixturePpm: cgaTM.dosagePpm }));
+        setFormStateVRM((prev) => ({ ...prev, admixtureName: cgaVRM.cgaBrand, admixturePpm: cgaVRM.dosagePpm }));
+      }
+    });
+    fetchCloudQualitySpecs().then((specs) => {
+      if (specs) saveStoredQualitySpecs(specs);
+    });
+  }, []);
 
   const millType: MillType = selectedMillCode === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)';
   const currentMillData: MillSessionData = selectedMillCode === 'TM' ? session.tm : session.vrm;
+  const activeForm: MillFormState = selectedMillCode === 'TM' ? formStateTM : formStateVRM;
 
-  const [productList, setProductList] = useState<string[]>(() => getStoredProductList());
-  const [productType, setProductType] = useState<ProductType>(currentMillData.productType);
-  const [siloName, setSiloName] = useState<string>(currentMillData.siloName);
-  const [tphCapacity, setTphCapacity] = useState<number>(currentMillData.tphFeeding || 100.0);
-  const [admixtureName, setAdmixtureName] = useState<string>(currentMillData.admixtureName);
-  const [admixturePpm, setAdmixturePpm] = useState<number>(currentMillData.admixturePpm);
-  const [bufferMaterial, setBufferMaterial] = useState<'trass' | 'clinker' | 'limestone'>('trass');
-
-  // Applied starting hour
-  const [appliedHour, setAppliedHour] = useState<string>(() => {
-    return currentMillData.hourlyRows[0]?.hour || '08:00';
-  });
-
-  // Keep state synced when switching between TM and VRM toggle
-  useEffect(() => {
-    const mill = selectedMillCode === 'TM' ? session.tm : session.vrm;
-    setProductType(mill.productType);
-    setSiloName(mill.siloName);
-    setTphCapacity(mill.tphFeeding || 100.0);
-    setAdmixtureName(mill.admixtureName);
-    setAdmixturePpm(mill.admixturePpm);
-
-    const latestProp = mill.proporsiHistory[mill.proporsiHistory.length - 1];
-    if (latestProp && latestProp.productType === mill.productType) {
-      setDryValues({
-        clinker: latestProp.materials.clinker.dry,
-        gypsum: latestProp.materials.gypsum.dry,
-        limestone: latestProp.materials.limestone.dry,
-        trass: latestProp.materials.trass.dry,
-        flyAsh: latestProp.materials.flyAsh.dry,
-      });
-      setH2oValues({
-        clinker: latestProp.materials.clinker.h2o,
-        gypsum: latestProp.materials.gypsum.h2o,
-        limestone: latestProp.materials.limestone.h2o,
-        trass: latestProp.materials.trass.h2o,
-        flyAsh: latestProp.materials.flyAsh.h2o,
-      });
-      if (latestProp.materials.trass.dry === 0 && latestProp.materials.limestone.dry > 0) {
-        setBufferMaterial('limestone');
-      }
+  const updateActiveForm = (updater: (prev: MillFormState) => MillFormState) => {
+    if (selectedMillCode === 'TM') {
+      setFormStateTM(updater);
     } else {
-      const std = masterTargets[selectedMillCode === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)']?.[mill.productType] || {
-        clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
-      };
-      setDryValues({ ...std });
-      if (std.trass === 0 && std.limestone > 0) {
-        setBufferMaterial('limestone');
-      }
+      setFormStateVRM(updater);
     }
-  }, [selectedMillCode]);
-
-  const defaultStandard = masterTargets[millType]?.[productType] || {
-    clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
   };
 
-  // Real-time Clock for Header and CCR Card (Poin 2)
+  // Daftar produk mengikuti Master Target Dry SI pada mesin yang dipilih
+  const availableProducts = useMemo(() => {
+    const millTargetKeys = Object.keys(masterTargets?.[millType] || {});
+    if (millTargetKeys.length > 0) {
+      return millTargetKeys;
+    }
+    return getStoredProductList();
+  }, [masterTargets, millType]);
+
+  const defaultStandard = useMemo(
+    () => getSiStandardDry(masterTargets, selectedMillCode, activeForm.productType),
+    [masterTargets, selectedMillCode, activeForm.productType]
+  );
+
+  // Real-time Clock for Header and CCR Card
   const [currentClock, setCurrentClock] = useState(() => {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
@@ -121,142 +325,179 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     return () => clearInterval(timer);
   }, [session.date]);
 
-  const [dryValues, setDryValues] = useState<{
-    clinker: number | '';
-    gypsum: number | '';
-    limestone: number | '';
-    trass: number | '';
-    flyAsh: number | '';
-  }>(() => {
-    const latestProp = currentMillData.proporsiHistory[currentMillData.proporsiHistory.length - 1];
-    if (latestProp && latestProp.productType === currentMillData.productType) {
-      return {
-        clinker: latestProp.materials.clinker.dry,
-        gypsum: latestProp.materials.gypsum.dry,
-        limestone: latestProp.materials.limestone.dry,
-        trass: latestProp.materials.trass.dry,
-        flyAsh: latestProp.materials.flyAsh.dry,
-      };
-    }
-    return { ...defaultStandard };
-  });
-
-  const [h2oValues, setH2oValues] = useState<{
-    clinker: number | '';
-    gypsum: number | '';
-    limestone: number | '';
-    trass: number | '';
-    flyAsh: number | '';
-  }>({
-    clinker: session.clinkerWf.h2o || 0.0,
-    gypsum: session.moistureWf.gypsum || 2.8,
-    limestone: session.moistureWf.limestone || 7.2,
-    trass: session.moistureWf.trass || 4.80,
-    flyAsh: 0.30,
-  });
-
   // Share CCR Image States
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
-  // Live calculation of Wet Base dengan formula standar pabrik FM-CWQC-27 & Balancer (Poin 1)
-  const calculation = calculateWetBase({
-    clinker: { dry: typeof dryValues.clinker === 'number' ? dryValues.clinker : 0, h2o: typeof h2oValues.clinker === 'number' ? h2oValues.clinker : 0 },
-    gypsum: { dry: typeof dryValues.gypsum === 'number' ? dryValues.gypsum : 0, h2o: typeof h2oValues.gypsum === 'number' ? h2oValues.gypsum : 0 },
-    limestone: { dry: typeof dryValues.limestone === 'number' ? dryValues.limestone : 0, h2o: typeof h2oValues.limestone === 'number' ? h2oValues.limestone : 0 },
-    trass: { dry: typeof dryValues.trass === 'number' ? dryValues.trass : 0, h2o: typeof h2oValues.trass === 'number' ? h2oValues.trass : 0 },
-    flyAsh: { dry: typeof dryValues.flyAsh === 'number' ? dryValues.flyAsh : 0, h2o: typeof h2oValues.flyAsh === 'number' ? h2oValues.flyAsh : 0 },
-  }, bufferMaterial, productType);
+  const {
+    productType,
+    siloName,
+    tphCapacity,
+    admixtureName,
+    admixturePpm,
+    bufferMaterial,
+    appliedHour,
+    dryValues,
+    h2oValues,
+  } = activeForm;
 
-  // Quality Warning untuk produk OPC jika Limestone (%Dry) > 5.0% (Poin 1.3)
+  // Live calculation of Wet Base
+  const calculation = calculateWetBase(
+    {
+      clinker: {
+        dry: typeof dryValues.clinker === 'number' ? dryValues.clinker : 0,
+        h2o: typeof h2oValues.clinker === 'number' ? h2oValues.clinker : 0,
+      },
+      gypsum: {
+        dry: typeof dryValues.gypsum === 'number' ? dryValues.gypsum : 0,
+        h2o: typeof h2oValues.gypsum === 'number' ? h2oValues.gypsum : 0,
+      },
+      limestone: {
+        dry: typeof dryValues.limestone === 'number' ? dryValues.limestone : 0,
+        h2o: typeof h2oValues.limestone === 'number' ? h2oValues.limestone : 0,
+      },
+      trass: {
+        dry: typeof dryValues.trass === 'number' ? dryValues.trass : 0,
+        h2o: typeof h2oValues.trass === 'number' ? h2oValues.trass : 0,
+      },
+      flyAsh: {
+        dry: typeof dryValues.flyAsh === 'number' ? dryValues.flyAsh : 0,
+        h2o: typeof h2oValues.flyAsh === 'number' ? h2oValues.flyAsh : 0,
+      },
+    },
+    bufferMaterial,
+    productType
+  );
+
   const opcLimestoneDry = typeof dryValues.limestone === 'number' ? dryValues.limestone : 0;
   const opcWarning = checkOpcLimestoneWarning(productType, opcLimestoneDry);
 
-  // Calculate W Basah Ton/Jam items for live UI display (scaled with TPH if specified)
-  const scaleFactor = tphCapacity > 0 ? (tphCapacity / 100.0) : 1.0;
+  const scaleFactor = tphCapacity > 0 ? tphCapacity / 100.0 : 1.0;
 
-  // Poin 1 Perbaikan Wajib: SEMUA baris material (Clinker, Gypsum, Limestone, Trass, Fly Ash) TIDAK BOLEH HILANG di tabel form input!
   const materialsList = [
     { key: 'clinker' as const, label: 'CLINKER', item: calculation.clinker, isBuffer: bufferMaterial === 'clinker' },
     { key: 'gypsum' as const, label: 'GYPSUM', item: calculation.gypsum },
-    { key: 'limestone' as const, label: 'LIMESTONE', item: calculation.limestone, isBuffer: calculation.limestone.dry > 0 && (calculation.trass.dry === 0 || bufferMaterial === 'limestone') },
-    { key: 'trass' as const, label: 'TRASS', item: calculation.trass, isBuffer: calculation.trass.dry > 0 && bufferMaterial === 'trass' },
+    {
+      key: 'limestone' as const,
+      label: 'LIMESTONE',
+      item: calculation.limestone,
+      isBuffer: calculation.limestone.dry > 0 && (calculation.trass.dry === 0 || bufferMaterial === 'limestone'),
+    },
+    {
+      key: 'trass' as const,
+      label: 'TRASS',
+      item: calculation.trass,
+      isBuffer: calculation.trass.dry > 0 && bufferMaterial === 'trass',
+    },
     { key: 'flyAsh' as const, label: 'FLY ASH', item: calculation.flyAsh },
   ];
 
-  const itemsWithWBasah = materialsList.map(m => {
+  const itemsWithWBasah = materialsList.map((m) => {
     const rawW = m.item.wBasah ?? 0;
     const wBasahScaled = Number((rawW * scaleFactor).toFixed(1));
     return {
       ...m,
-      wBasah: wBasahScaled
+      wBasah: wBasahScaled,
     };
   });
 
-  // Format angka konsisten 1 desimal
   const totalWBasahFormatted = (calculation.totalMassaBasah * scaleFactor).toFixed(1);
   const airMenguapFormatted = (calculation.airMenguap * scaleFactor).toFixed(1);
 
-  const isOverride = 
+  const isOverride =
     dryValues.clinker !== defaultStandard.clinker ||
     dryValues.gypsum !== defaultStandard.gypsum ||
     dryValues.limestone !== defaultStandard.limestone ||
     dryValues.trass !== defaultStandard.trass ||
     dryValues.flyAsh !== defaultStandard.flyAsh;
 
+  // Saat analis mengganti Jenis Produk pada mesin aktif, tarik standar %Dry & CGA dari Master SI untuk mesin tsb
   const handleProductChange = (newProd: ProductType) => {
-    setProductType(newProd);
-    const standard = masterTargets[millType]?.[newProd] || {
-      clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
-    };
-    setDryValues({ ...standard });
-    if (standard.trass === 0 && standard.limestone > 0) {
-      setBufferMaterial('limestone');
-    } else if (standard.trass > 0) {
-      setBufferMaterial('trass');
-    }
+    const siDry = getSiStandardDry(masterTargets, selectedMillCode, newProd);
+    const cga = findCgaForMillAndProduct(selectedMillCode, newProd);
+    const nextBuffer: 'trass' | 'clinker' | 'limestone' =
+      siDry.trass === 0 && siDry.limestone > 0 ? 'limestone' : 'trass';
+
+    updateActiveForm((prev) => ({
+      ...prev,
+      productType: newProd,
+      admixtureName: cga.cgaBrand,
+      admixturePpm: cga.dosagePpm,
+      bufferMaterial: nextBuffer,
+      dryValues: { ...siDry },
+      isUserCustomized: true,
+    }));
   };
 
   const handleResetToStandard = () => {
-    const standard = masterTargets[millType]?.[productType];
-    if (standard) {
-      setDryValues({ ...standard });
-    }
+    const siDry = getSiStandardDry(masterTargets, selectedMillCode, productType);
+    const cga = findCgaForMillAndProduct(selectedMillCode, productType);
+    updateActiveForm((prev) => ({
+      ...prev,
+      dryValues: { ...siDry },
+      admixtureName: cga.cgaBrand,
+      admixturePpm: cga.dosagePpm,
+      bufferMaterial: siDry.trass === 0 && siDry.limestone > 0 ? 'limestone' : 'trass',
+      isUserCustomized: false,
+    }));
   };
 
   const handleDryChange = (key: 'clinker' | 'gypsum' | 'limestone' | 'trass' | 'flyAsh', val: string) => {
-    if (val === '') {
-      setDryValues(prev => ({ ...prev, [key]: '' }));
-      return;
-    }
-    const num = parseFloat(val);
-    setDryValues(prev => ({ ...prev, [key]: isNaN(num) ? '' : num }));
+    updateActiveForm((prev) => {
+      if (val === '') {
+        return {
+          ...prev,
+          dryValues: { ...prev.dryValues, [key]: '' },
+          isUserCustomized: true,
+        };
+      }
+      const num = parseFloat(val);
+      return {
+        ...prev,
+        dryValues: { ...prev.dryValues, [key]: isNaN(num) ? '' : num },
+        isUserCustomized: true,
+      };
+    });
   };
 
   const handleH2oChange = (key: 'clinker' | 'gypsum' | 'limestone' | 'trass' | 'flyAsh', val: string) => {
-    if (val === '') {
-      setH2oValues(prev => ({ ...prev, [key]: '' }));
-      return;
-    }
-    const num = parseFloat(val);
-    setH2oValues(prev => ({ ...prev, [key]: isNaN(num) ? '' : num }));
+    updateActiveForm((prev) => {
+      if (val === '') {
+        return {
+          ...prev,
+          h2oValues: { ...prev.h2oValues, [key]: '' },
+          isUserCustomized: true,
+        };
+      }
+      const num = parseFloat(val);
+      return {
+        ...prev,
+        h2oValues: { ...prev.h2oValues, [key]: isNaN(num) ? '' : num },
+        isUserCustomized: true,
+      };
+    });
   };
 
-  // Save & Activate specifically to the selected mill
+  // Simpan & Aktifkan khusus pada mesin yang sedang dipilih (TM atau VRM)
   const handleSaveAndActivate = () => {
     if (!calculation.isValidDry || !calculation.isValidWet) {
       alert('Total Proporsi Dry dan Wet wajib tepat 100.0% sebelum dapat disimpan.');
       return;
     }
 
-    const versionNum = currentMillData.proporsiHistory.length + 1;
-    const newPropId = `prop_${selectedMillCode.toLowerCase()}_v${versionNum}_${Date.now()}`;
-    const newPropLabel = `Proporsi ${versionNum} (${appliedHour} - ${currentMillData.hourlyRows[currentMillData.hourlyRows.length - 1]?.hour || 'Selesai'})`;
+    const existingValidHistory = (currentMillData.proporsiHistory || []).filter(
+      (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
+    );
 
-    const updatedHistory = currentMillData.proporsiHistory.map((p, idx) => {
-      if (idx === currentMillData.proporsiHistory.length - 1) {
+    const versionNum = existingValidHistory.length + 1;
+    const newPropId = `prop_${selectedMillCode.toLowerCase()}_v${versionNum}_${Date.now()}`;
+    const lastHourLabel = currentMillData.hourlyRows[currentMillData.hourlyRows.length - 1]?.hour || 'Selesai';
+    const newPropLabel = `Proporsi ${versionNum} (${appliedHour} - ${lastHourLabel})`;
+
+    const updatedHistory = existingValidHistory.map((p, idx) => {
+      if (idx === existingValidHistory.length - 1) {
         return { ...p, endAtHour: appliedHour };
       }
       return p;
@@ -267,7 +508,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       versionNumber: versionNum,
       label: newPropLabel,
       appliedAtHour: appliedHour,
-      endAtHour: currentMillData.hourlyRows[currentMillData.hourlyRows.length - 1]?.hour || 'Selesai',
+      endAtHour: lastHourLabel,
       millType,
       productType,
       siloName,
@@ -289,11 +530,10 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
 
     updatedHistory.push(newProp);
 
-    // Update hourly rows for this mill from appliedHour onwards
-    const appliedIndex = currentMillData.hourlyRows.findIndex(r => r.hour === appliedHour);
+    // Update hourly rows mulai dari jam berlaku yang dipilih
+    const appliedIndex = currentMillData.hourlyRows.findIndex((r) => r.hour === appliedHour);
     const startIdx = appliedIndex !== -1 ? appliedIndex : 0;
 
-    // Display summary with DRY values on grid as per Point 6 (Filter material non-aktif 0%)
     const propSummaryParts: string[] = [];
     if (calculation.clinker.dry > 0) propSummaryParts.push(`${calculation.clinker.dry}% Clk`);
     if (calculation.gypsum.dry > 0) propSummaryParts.push(`${calculation.gypsum.dry}% Gyp`);
@@ -332,10 +572,11 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
       [selectedMillCode === 'TM' ? 'tm' : 'vrm']: updatedMillData,
     };
 
+    updateActiveForm((prev) => ({ ...prev, isUserCustomized: true }));
     onUpdateSession(updatedSession);
     saveCloudSession(updatedSession);
 
-    alert(`✅ Proporsi baru untuk ${selectedMillCode} [${newPropLabel}] berhasil diaktifkan mulai jam ${appliedHour}!`);
+    alert(`✅ Proporsi untuk ${selectedMillCode} [${newPropLabel}] berhasil disimpan & diaktifkan mulai jam ${appliedHour}!`);
   };
 
   // Generate CCR Image via HTML5 Canvas renderer
@@ -344,6 +585,19 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     setShowShareModal(true);
 
     try {
+      const specs = getStoredQualitySpecs();
+      const spec =
+        specs.find(
+          (s) =>
+            (s.millType === selectedMillCode || !s.millType) &&
+            s.productType.toUpperCase().trim() === productType.toUpperCase().trim()
+        ) ||
+        specs.find((s) => s.productType.toUpperCase().trim() === productType.toUpperCase().trim());
+
+      const targetQualitySummary = spec
+        ? `Target: Blaine ${spec.blaine.min}-${spec.blaine.max} | R45 Max ${spec.residuR45.max}% | SO3 ${spec.so3.min}-${spec.so3.max}%`
+        : undefined;
+
       const dataUrl = await renderCcrImage({
         date: session.date,
         shiftName: session.shiftName,
@@ -361,6 +615,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         totalMassaBasah: Number((calculation.totalMassaBasah * scaleFactor).toFixed(1)),
         airMenguap: Number((calculation.airMenguap * scaleFactor).toFixed(1)),
         opcWarning: opcWarning.hasWarning ? opcWarning.message : undefined,
+        targetQualitySummary,
       });
 
       setGeneratedImageUrl(dataUrl);
@@ -395,13 +650,18 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
     a.click();
   };
 
+  const validMillHistory = useMemo(() => {
+    return (currentMillData.proporsiHistory || []).filter(
+      (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
+    );
+  }, [currentMillData.proporsiHistory]);
+
   return (
     <div className="space-y-4 font-sans">
 
       {/* Target Mill & Product Controls Bar */}
       <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm space-y-3">
         
-        {/* Real-time Date and Time Header Badge (Poin 2: DD MMMM YYYY, HH:mm WIB) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200">
           <div className="flex items-center gap-2">
             <span className="px-3 py-1 bg-slate-800 text-white font-mono font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs">
@@ -423,50 +683,60 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
             <button
               type="button"
               onClick={() => setSelectedMillCode('TM')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 selectedMillCode === 'TM'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
                   : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-amber-600" />
-              <span>Mill 1: TM</span>
+              <span>TM</span>
             </button>
             <button
               type="button"
               onClick={() => setSelectedMillCode('VRM')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 selectedMillCode === 'VRM'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
                   : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-[#0284C7]" />
-              <span>Mill 2: VRM</span>
+              <span>VRM</span>
             </button>
           </div>
 
           {/* Product, Silo, Buffer, TPH Feeding & Reset */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Dynamic Product Dropdown */}
+            {/* Dynamic Product Dropdown from SI Master Data */}
             <select
               value={productType}
               onChange={(e) => handleProductChange(e.target.value as ProductType)}
               className="px-3 py-2 font-bold bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
             >
-              {productList.map(p => (
-                <option key={p} value={p}>{p}</option>
+              {availableProducts.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
               ))}
             </select>
 
             {/* Default Silo Dropdown */}
             <select
               value={siloName}
-              onChange={(e) => setSiloName(e.target.value)}
+              onChange={(e) =>
+                updateActiveForm((prev) => ({
+                  ...prev,
+                  siloName: e.target.value,
+                  isUserCustomized: true,
+                }))
+              }
               className="px-3 py-2 font-bold bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 focus:bg-white focus:outline-none"
             >
-              {DEFAULT_SILO_OPTIONS.map(s => (
-                <option key={s} value={s}>{s}</option>
+              {DEFAULT_SILO_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
             </select>
 
@@ -478,7 +748,13 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                 inputMode="decimal"
                 step="1"
                 value={tphCapacity}
-                onChange={(e) => setTphCapacity(parseFloat(e.target.value) || 0)}
+                onChange={(e) =>
+                  updateActiveForm((prev) => ({
+                    ...prev,
+                    tphCapacity: parseFloat(e.target.value) || 0,
+                    isUserCustomized: true,
+                  }))
+                }
                 placeholder="100"
                 className="w-14 bg-transparent font-mono font-bold text-xs text-slate-900 text-right focus:outline-none"
               />
@@ -489,7 +765,13 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               <span className="text-[11px] font-bold text-slate-600">Buffer:</span>
               <select
                 value={bufferMaterial}
-                onChange={(e) => setBufferMaterial(e.target.value as 'trass' | 'clinker' | 'limestone')}
+                onChange={(e) =>
+                  updateActiveForm((prev) => ({
+                    ...prev,
+                    bufferMaterial: e.target.value as 'trass' | 'clinker' | 'limestone',
+                    isUserCustomized: true,
+                  }))
+                }
                 className="bg-transparent font-bold text-xs focus:outline-none text-slate-900 cursor-pointer"
               >
                 <option value="trass">Trass</option>
@@ -500,16 +782,17 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
 
             {isOverride ? (
               <button
+                type="button"
                 onClick={handleResetToStandard}
-                className="px-2.5 py-2 text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-400 rounded-lg flex items-center gap-1 transition-colors"
-                title="Kembalikan target ke standar supervisor"
+                className="px-2.5 py-2 text-[11px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-400 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                title="Kembalikan target ke standar Master SI"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset Standar</span>
+                <span>Reset Standar SI</span>
               </button>
             ) : (
-              <span className="text-[11px] text-slate-600 font-bold px-2 py-1.5 bg-slate-100 rounded border border-slate-300">
-                Standar Master
+              <span className="text-[11px] text-emerald-800 font-bold px-2.5 py-1.5 bg-emerald-50 rounded border border-emerald-300">
+                Sesuai Master SI ({selectedMillCode})
               </span>
             )}
           </div>
@@ -517,7 +800,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         </div>
       </div>
 
-      {/* Quality Warning for OPC: Kandungan Limestone > 5.0% (Poin 1.3) */}
+      {/* Quality Warning for OPC: Kandungan Limestone > 5.0% */}
       {opcWarning.hasWarning && (
         <div className="p-3 bg-red-50 border-2 border-red-300 rounded-xl text-red-900 flex items-start gap-2.5 text-xs font-semibold shadow-xs">
           <AlertCircle className="w-4 h-4 text-[#E31E24] shrink-0 mt-0.5" />
@@ -527,10 +810,10 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         </div>
       )}
 
-      {/* Main Calculation & Setpoint Feeder Card (100% Mirroring CCR Image Reference) */}
+      {/* Main Calculation & Setpoint Feeder Card */}
       <div className="bg-white border-2 border-slate-500 rounded-xl shadow-sm overflow-hidden">
         
-        {/* Card Header (HASIL SETPOINT FEEDER & WET BASE Badge) */}
+        {/* Card Header */}
         <div className="p-4 bg-slate-100 border-b-2 border-slate-400 flex items-center justify-between">
           <div>
             <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -553,7 +836,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
           </div>
         </div>
 
-        {/* 5-Column Excel-like Calculation Table */}
+        {/* 5-Column Calculation Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-mono">
             <thead>
@@ -576,11 +859,8 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-300">
-              
-              {/* Poin 1 Perbaikan Wajib: Form Setting Proporsi menampilkan SEMUA baris material (tidak boleh hilang jika 0 / dihapus) */}
               {itemsWithWBasah.map((m) => (
                 <tr key={m.key} className="hover:bg-slate-50 transition-colors">
-                  {/* Material Name */}
                   <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900">
                     <div className="flex items-center justify-between">
                       <span>{m.label}</span>
@@ -592,7 +872,6 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                     </div>
                   </td>
 
-                  {/* %DRY Editable Input - Bebas dikosongkan/diisi 0 tanpa menghilangkan baris */}
                   <td className="p-0 border-r border-slate-300 bg-amber-50/20">
                     <input
                       type="number"
@@ -605,7 +884,6 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                     />
                   </td>
 
-                  {/* MOIST Editable Input */}
                   <td className="p-0 border-r border-slate-300 bg-blue-50/20">
                     <input
                       type="number"
@@ -618,12 +896,10 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
                     />
                   </td>
 
-                  {/* W BASAH = konsisten 1 angka desimal (Poin 3) */}
                   <td className="py-2 px-3 border-r border-slate-300 text-right font-bold text-slate-900">
                     {m.wBasah.toFixed(1)}
                   </td>
 
-                  {/* %WET Badge */}
                   <td className="py-1.5 px-3 text-center">
                     <span className="inline-block px-3 py-1 bg-red-100 border border-red-300 text-[#E31E24] font-bold text-xs rounded font-mono shadow-2xs">
                       {m.item.wet.toFixed(1)}%
@@ -661,7 +937,6 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         <div className="p-4 bg-slate-50 border-t-2 border-slate-300">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             
-            {/* Kotak Kiri: Total Massa Basah */}
             <div className="bg-white border-2 border-slate-400 rounded-xl p-3.5 shadow-2xs">
               <span className="text-[11px] font-semibold text-slate-600 block">
                 Total Massa Basah (Input Feeder)
@@ -674,7 +949,6 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               </span>
             </div>
 
-            {/* Kotak Kanan: Air Menguap (Mill) */}
             <div className="bg-white border-2 border-slate-400 rounded-xl p-3.5 shadow-2xs">
               <span className="text-[11px] font-semibold text-slate-600 block">
                 Air Menguap (Mill)
@@ -693,24 +967,38 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         {/* Admixture & Hour Controls Bar */}
         <div className="p-3.5 bg-slate-100 border-t-2 border-slate-300 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <div>
-            <label className="block text-slate-700 font-bold mb-1">Admixture (CGA)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-slate-700 font-bold">Admixture (CGA)</label>
+              <span className="text-[10px] text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded border border-slate-300 font-medium inline-flex items-center gap-1 font-mono">
+                <Lock className="w-3 h-3 text-slate-500" />
+                Terkunci Master SI
+              </span>
+            </div>
             <input
               type="text"
+              readOnly
               value={admixtureName}
-              onChange={(e) => setAdmixtureName(e.target.value)}
-              placeholder="CGA Sika"
-              className="w-full px-2.5 py-1.5 font-semibold bg-white border border-slate-400 rounded-lg focus:outline-none"
+              placeholder="SIKA"
+              className="w-full px-2.5 py-1.5 font-semibold bg-slate-100 border border-slate-300 rounded-lg text-slate-700 cursor-not-allowed select-none focus:outline-none"
+              title="Jenis CGA terkunci otomatis sesuai Master CGA SI"
             />
           </div>
 
           <div>
-            <label className="block text-slate-700 font-bold mb-1">Dosis (PPM)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-slate-700 font-bold">Dosis (PPM)</label>
+              <span className="text-[10px] text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded border border-slate-300 font-medium inline-flex items-center gap-1 font-mono">
+                <Lock className="w-3 h-3 text-slate-500" />
+                Terkunci Master SI
+              </span>
+            </div>
             <input
               type="number"
+              readOnly
               value={admixturePpm}
-              onChange={(e) => setAdmixturePpm(parseInt(e.target.value) || 0)}
               placeholder="400"
-              className="w-full px-2.5 py-1.5 font-mono font-semibold bg-white border border-slate-400 rounded-lg focus:outline-none"
+              className="w-full px-2.5 py-1.5 font-mono font-semibold bg-slate-100 border border-slate-300 rounded-lg text-slate-700 cursor-not-allowed select-none focus:outline-none"
+              title="Dosis PPM terkunci otomatis sesuai Master CGA SI"
             />
           </div>
 
@@ -718,10 +1006,16 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
             <label className="block text-slate-700 font-bold mb-1">Berlaku Mulai Jam</label>
             <select
               value={appliedHour}
-              onChange={(e) => setAppliedHour(e.target.value)}
+              onChange={(e) =>
+                updateActiveForm((prev) => ({
+                  ...prev,
+                  appliedHour: e.target.value,
+                  isUserCustomized: true,
+                }))
+              }
               className="w-full px-2.5 py-1.5 font-mono font-bold bg-white border border-slate-400 rounded-lg focus:outline-none"
             >
-              {currentMillData.hourlyRows.map(r => (
+              {currentMillData.hourlyRows.map((r) => (
                 <option key={r.hour} value={r.hour}>
                   Jam {r.hour}
                 </option>
@@ -733,7 +1027,8 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
         {/* Solid Actions Bar */}
         <div className="p-3.5 bg-white border-t-2 border-slate-300 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="font-mono text-slate-700">
-            Target Mill: <strong>{selectedMillCode}</strong> · {calculation.isValidWet && calculation.isValidDry ? (
+            Target Mill: <strong>{selectedMillCode}</strong> ·{' '}
+            {calculation.isValidWet && calculation.isValidDry ? (
               <span className="text-[#16A34A] font-bold">100.0% Valid</span>
             ) : (
               <span className="text-[#E31E24] font-bold">Belum 100.0%</span>
@@ -745,7 +1040,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               type="button"
               onClick={handleGenerateCcrImage}
               disabled={!calculation.isValidDry || !calculation.isValidWet}
-              className="px-4 py-2 font-bold text-white bg-[#0284C7] hover:bg-sky-700 disabled:opacity-40 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 font-bold text-white bg-[#0284C7] hover:bg-sky-700 disabled:opacity-40 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Camera className="w-4 h-4" />
               <span>Share ke CCR (Gambar)</span>
@@ -755,7 +1050,7 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
               type="button"
               onClick={handleSaveAndActivate}
               disabled={!calculation.isValidDry || !calculation.isValidWet}
-              className="px-5 py-2 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 disabled:opacity-40 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+              className="px-5 py-2 font-bold text-white bg-[#16A34A] hover:bg-emerald-700 disabled:opacity-40 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Save className="w-4 h-4" />
               <span>Simpan & Aktifkan ({selectedMillCode})</span>
@@ -772,48 +1067,63 @@ export const ProporsiPage: React.FC<ProporsiPageProps> = ({
           <span>Riwayat Proporsi {selectedMillCode} Shift Ini</span>
         </h3>
 
-        <div className="divide-y divide-slate-200">
-          {currentMillData.proporsiHistory.map((prop, idx) => {
-            const m = prop.materials;
-            const isLatest = idx === currentMillData.proporsiHistory.length - 1;
+        {validMillHistory.length === 0 ? (
+          <div className="py-4 text-center text-xs text-slate-500 italic">
+            Belum ada proporsi yang diaktifkan untuk {selectedMillCode} pada shift ini.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {validMillHistory.map((prop, idx) => {
+              const m = prop.materials;
+              const isLatest = idx === validMillHistory.length - 1;
 
-            return (
-              <div key={prop.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900">{prop.label}</span>
-                    {isLatest && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold text-white bg-[#16A34A] rounded">
-                        Aktif
+              return (
+                <div key={prop.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900">{prop.label}</span>
+                      <span className="px-2 py-0.5 text-[10px] font-bold text-slate-700 bg-slate-200 rounded font-mono">
+                        {prop.productType} · {prop.siloName}
                       </span>
-                    )}
+                      {isLatest && (
+                        <span className="px-2 py-0.5 text-[10px] font-bold text-white bg-[#16A34A] rounded">
+                          Aktif
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-mono text-slate-700 text-[11px] mt-0.5">
+                      Target Dry:{' '}
+                      {[
+                        m.clinker.dry > 0 && `${m.clinker.dry}% Clk`,
+                        m.gypsum.dry > 0 && `${m.gypsum.dry}% Gyp`,
+                        m.limestone.dry > 0 && `${m.limestone.dry}% Lst`,
+                        m.trass.dry > 0 && `${m.trass.dry}% Trass`,
+                        m.flyAsh.dry > 0 && `${m.flyAsh.dry}% FA`,
+                      ]
+                        .filter(Boolean)
+                        .join(' | ')}
+                    </div>
+                    <div className="font-mono text-slate-500 text-[10px]">
+                      Wet Base CCR:{' '}
+                      {[
+                        m.clinker.dry > 0 && `${m.clinker.wet}% Clk`,
+                        m.gypsum.dry > 0 && `${m.gypsum.wet}% Gyp`,
+                        m.limestone.dry > 0 && `${m.limestone.wet}% Lst`,
+                        m.trass.dry > 0 && `${m.trass.wet}% Trass`,
+                        m.flyAsh.dry > 0 && `${m.flyAsh.wet}% FA`,
+                      ]
+                        .filter(Boolean)
+                        .join(' | ')}
+                    </div>
                   </div>
-                  <div className="font-mono text-slate-700 text-[11px] mt-0.5">
-                    Target Dry: {[
-                      m.clinker.dry > 0 && `${m.clinker.dry}% Clk`,
-                      m.gypsum.dry > 0 && `${m.gypsum.dry}% Gyp`,
-                      m.limestone.dry > 0 && `${m.limestone.dry}% Lst`,
-                      m.trass.dry > 0 && `${m.trass.dry}% Trass`,
-                      m.flyAsh.dry > 0 && `${m.flyAsh.dry}% FA`,
-                    ].filter(Boolean).join(' | ')}
-                  </div>
-                  <div className="font-mono text-slate-500 text-[10px]">
-                    Wet Base CCR: {[
-                      m.clinker.dry > 0 && `${m.clinker.wet}% Clk`,
-                      m.gypsum.dry > 0 && `${m.gypsum.wet}% Gyp`,
-                      m.limestone.dry > 0 && `${m.limestone.wet}% Lst`,
-                      m.trass.dry > 0 && `${m.trass.wet}% Trass`,
-                      m.flyAsh.dry > 0 && `${m.flyAsh.wet}% FA`,
-                    ].filter(Boolean).join(' | ')}
+                  <div className="text-slate-600 font-mono text-[11px]">
+                    {prop.admixtureName} {prop.admixturePpm} PPM · {prop.tphFeeding || 100} t/h
                   </div>
                 </div>
-                <div className="text-slate-600 font-mono text-[11px]">
-                  {prop.admixtureName} {prop.admixturePpm} PPM · {prop.tphFeeding || 100} t/h
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Share to CCR Modal with Rendered PNG Preview */}

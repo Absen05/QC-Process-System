@@ -15,10 +15,20 @@ import {
   saveStoredActiveSession, 
   getStoredMasterTargets, 
   saveStoredMasterTargets, 
+  saveStoredQualitySpecs,
+  saveStoredCgaSettings,
+  saveStoredProductList,
   switchOrStartShift, 
   resetFactoryData 
 } from './services/qcStorage';
-import { fetchCloudSession, saveCloudSession } from './services/qcApi';
+import { 
+  fetchCloudSession, 
+  saveCloudSession, 
+  fetchCloudMasterTargets, 
+  fetchCloudQualitySpecs, 
+  fetchCloudCgaSettings, 
+  fetchCloudProductList 
+} from './services/qcApi';
 
 import { Navbar, MainAppTab } from './components/qc/Navbar';
 import { LoginPage } from './components/qc/LoginPage';
@@ -33,6 +43,9 @@ import { RawMaterialsPage } from './components/qc/RawMaterialsPage';
 import { WhatsAppReportPage } from './components/qc/WhatsAppReportPage';
 import { RiwayatPage } from './components/qc/RiwayatPage';
 import { MasterDataPage } from './components/qc/MasterDataPage';
+import { DashboardAnalitikPage } from './components/qc/DashboardAnalitikPage';
+
+import { supabase } from './services/supabaseClient';
 
 export default function App() {
   const [auth, setAuth] = useState<AuthSession>(() => getStoredAuth());
@@ -41,8 +54,27 @@ export default function App() {
     if (storedAuth.isLoggedIn && storedAuth.user?.role === 'supervisor') {
       return 'master';
     }
+    // Persistensi Navigasi Halaman Terakhir Analis (Poin I.1)
+    try {
+      const saved = localStorage.getItem('active_tab_analyst') as MainAppTab | null;
+      const validAnalystTabs: MainAppTab[] = ['grid', 'proporsi', 'data_wf', 'data_cp', 'materials', 'report', 'riwayat'];
+      if (saved && validAnalystTabs.includes(saved)) {
+        return saved;
+      }
+    } catch (e) {}
     return 'grid';
   });
+
+  // Persist tab navigation for analysts (Poin I.1)
+  const handleSelectTab = (tab: MainAppTab) => {
+    setCurrentTab(tab);
+    if (auth.user?.role !== 'supervisor') {
+      try {
+        localStorage.setItem('active_tab_analyst', tab);
+      } catch (e) {}
+    }
+  };
+
   const [session, setSession] = useState<ShiftSession>(() => getStoredActiveSession());
   const [masterTargets, setMasterTargets] = useState<MasterTargetDryMap>(() => getStoredMasterTargets());
   
@@ -51,8 +83,25 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [proporsiTargetMill, setProporsiTargetMill] = useState<'TM' | 'VRM'>('TM');
 
-  // Poin 2: Sinkronisasi Cloud Database Real-time (PC & HP)
+  // Global Master Data & Cloud Database Real-time Sync (PC & HP)
   useEffect(() => {
+    // 1. Sync master data globally across all users (Admin & Analis)
+    fetchCloudMasterTargets().then((targets) => {
+      if (targets) {
+        setMasterTargets(targets);
+        saveStoredMasterTargets(targets);
+      }
+    });
+    fetchCloudQualitySpecs().then((specs) => {
+      if (specs) saveStoredQualitySpecs(specs);
+    });
+    fetchCloudCgaSettings().then((settings) => {
+      if (settings) saveStoredCgaSettings(settings);
+    });
+    fetchCloudProductList().then((products) => {
+      if (products) saveStoredProductList(products);
+    });
+
     if (!auth.isLoggedIn || !auth.loginDate || !auth.loginShift) return;
 
     let isMounted = true;
@@ -62,7 +111,23 @@ export default function App() {
       }
     });
 
-    // Background polling sync setiap 10 detik agar perubahan di PC langsung tampak di HP
+    // Supabase Realtime Listener untuk sinkronisasi seketika antar HP & PC
+    const channel = supabase
+      .channel('qc_sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'qc_sessions' },
+        () => {
+          fetchCloudSession(auth.loginDate, auth.loginShift).then((res) => {
+            if (isMounted && res.found && res.session) {
+              setSession(res.session);
+            }
+          });
+        }
+      )
+      .subscribe();
+
+    // Background polling sync setiap 10 detik sebagai backup
     const interval = setInterval(() => {
       fetchCloudSession(auth.loginDate, auth.loginShift).then((res) => {
         if (isMounted && res.found && res.session) {
@@ -74,15 +139,23 @@ export default function App() {
           });
         }
       });
+      // Also poll master targets in background so admin changes reflect on analyst devices immediately
+      fetchCloudMasterTargets().then((targets) => {
+        if (isMounted && targets) {
+          setMasterTargets(targets);
+          saveStoredMasterTargets(targets);
+        }
+      });
     }, 10000);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
+      supabase.removeChannel(channel);
     };
   }, [auth.isLoggedIn, auth.loginDate, auth.loginShift]);
 
-  // Handle successful login: query cloud session first, else create with carry-over (Poin 2 & 3)
+  // Handle successful login: query cloud session first, else create with carry-over (Estafet Proporsi)
   const handleLoginSuccess = async (user: UserAccount, date: string, shift: ShiftName) => {
     const newAuth: AuthSession = {
       isLoggedIn: true,
@@ -93,6 +166,19 @@ export default function App() {
     setAuth(newAuth);
     saveStoredAuth(newAuth);
 
+    // Sync master data globally on login
+    const cloudTargets = await fetchCloudMasterTargets();
+    if (cloudTargets) {
+      setMasterTargets(cloudTargets);
+      saveStoredMasterTargets(cloudTargets);
+    }
+    const cloudSpecs = await fetchCloudQualitySpecs();
+    if (cloudSpecs) saveStoredQualitySpecs(cloudSpecs);
+    const cloudCga = await fetchCloudCgaSettings();
+    if (cloudCga) saveStoredCgaSettings(cloudCga);
+    const cloudProducts = await fetchCloudProductList();
+    if (cloudProducts) saveStoredProductList(cloudProducts);
+
     if (user.role === 'supervisor') {
       setCurrentTab('master');
       const cloudRes = await fetchCloudSession(date, shift);
@@ -100,15 +186,26 @@ export default function App() {
         setSession(cloudRes.session);
       }
     } else {
-      setCurrentTab('grid');
-      // Fetch data aktif berdasarkan tanggal dan shift saat itu
+      // Poin I.1: Buka otomatis rute/tab yang terakhir diakses oleh analis
+      let targetTab: MainAppTab = 'grid';
+      try {
+        const saved = localStorage.getItem('active_tab_analyst') as MainAppTab | null;
+        const validAnalystTabs: MainAppTab[] = ['grid', 'proporsi', 'data_wf', 'data_cp', 'materials', 'report', 'riwayat'];
+        if (saved && validAnalystTabs.includes(saved)) {
+          targetTab = saved;
+        }
+      } catch (e) {}
+      setCurrentTab(targetTab);
+
+      // Poin I.2: Inisialisasi Shift Baru Bersih dari Supabase
+      // Query pengecekan ke Supabase berdasarkan { tanggal, shift }. Jika belum ada data, seluruh grid KOSONG (blank / null).
       const cloudRes = await fetchCloudSession(date, shift);
       if (cloudRes.found && cloudRes.session) {
         setSession(cloudRes.session);
         saveStoredActiveSession(cloudRes.session);
       } else {
-        // Estafet proporsi shift dari sesi lampau
-        const loadedSession = switchOrStartShift(date, shift, user.name);
+        // Shift baru bersih: seluruh baris dan form kondisi KOSONG (blank / null), bukan sisa data lampau
+        const loadedSession = switchOrStartShift(date, shift, user.name, null);
         setSession(loadedSession);
         saveCloudSession(loadedSession);
       }
@@ -160,20 +257,20 @@ export default function App() {
       vrmSilo
     );
     setSession(newSession);
-    setCurrentTab('grid');
+    handleSelectTab('grid');
   };
 
   // Load an archived shift directly onto the active workspace
   const handleLoadArchiveToActive = (archivedSession: ShiftSession) => {
     setSession(archivedSession);
     saveStoredActiveSession(archivedSession);
-    setCurrentTab('grid');
+    handleSelectTab('grid');
   };
 
   // Navigate to Proporsi targeting a specific mill
   const handleNavigateToProporsi = (mill: 'TM' | 'VRM' = 'TM') => {
     setProporsiTargetMill(mill);
-    setCurrentTab('proporsi');
+    handleSelectTab('proporsi');
   };
 
   // Update master targets (Supervisor only)
@@ -188,7 +285,7 @@ export default function App() {
     const freshTargets = getStoredMasterTargets();
     setSession(freshSession);
     setMasterTargets(freshTargets);
-    setCurrentTab('grid');
+    handleSelectTab('grid');
   };
 
   // 1. If not authenticated, render Login Portal (Poin 2)
@@ -204,13 +301,12 @@ export default function App() {
       {/* Top Navigation Bar with Brand, Shifts, AI Button & Profile */}
       <Navbar
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        onSelectTab={handleSelectTab}
         currentUser={currentUser}
         session={session}
         onOpenShiftModal={() => setIsShiftModalOpen(true)}
         onOpenAiModal={() => setIsAiModalOpen(true)}
         onOpenProfileModal={() => setIsProfileModalOpen(true)}
-        onLogout={handleLogout}
       />
 
       {/* Main Viewport Container */}
@@ -231,7 +327,7 @@ export default function App() {
             masterTargets={masterTargets}
             initialMill={proporsiTargetMill}
             onUpdateSession={handleUpdateSession}
-            onSwitchTab={setCurrentTab}
+            onSwitchTab={handleSelectTab}
           />
         )}
 
@@ -280,6 +376,11 @@ export default function App() {
             onUpdateMasterTargets={handleUpdateMasterTargets}
             onResetFactoryData={handleResetFactory}
           />
+        )}
+
+        {/* Tab 9: DASHBOARD ANALITIK & TREN MUTU (Khusus Dashboard SI) */}
+        {currentTab === 'analytics' && isSupervisor && (
+          <DashboardAnalitikPage />
         )}
       </main>
 

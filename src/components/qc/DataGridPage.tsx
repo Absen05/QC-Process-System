@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ShiftSession, HourlyAnalysisRow, MillSessionData, ShiftName, DEFAULT_SILO_OPTIONS } from '../../types/qc';
-import { Factory, Power, ArrowRight, Download, Clock, Calculator } from 'lucide-react';
+import { ShiftSession, HourlyAnalysisRow, MillSessionData, ShiftName } from '../../types/qc';
+import { Factory, ArrowRight, Download, Calculator, CheckCircle2, CircleDashed, AlertCircle } from 'lucide-react';
 import { upsertCloudCell } from '../../services/qcApi';
 import { exportShiftToExcel } from '../../utils/qcExcelExport';
 import { SHIFT_DEFINITIONS } from '../../utils/qcCalculations';
+import { getStoredQualitySpecs } from '../../services/qcStorage';
 
 interface DataGridPageProps {
   session: ShiftSession;
@@ -16,10 +17,8 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
   onUpdateSession,
   onNavigateToProporsi,
 }) => {
-  // Dual-Mill Sub-Tab Switcher: TM (Mill 1) is first priority, then VRM (Mill 2)
   const [activeMillTab, setActiveMillTab] = useState<'TM' | 'VRM'>('TM');
 
-  // Indikator loading jika session asinkron dari cloud/localStorage belum siap
   if (!session) {
     return (
       <div className="bg-white border-2 border-slate-500 rounded-xl p-12 text-center shadow-sm">
@@ -30,14 +29,12 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     );
   }
 
-  // Jam operasional shift aktif (fallback Shift 2: 08:00 - 15:00 jika session.shiftName belum terisi)
   const activeShiftName: ShiftName = session.shiftName || 'SHIFT 2';
   const shiftDef = SHIFT_DEFINITIONS[activeShiftName] || SHIFT_DEFINITIONS['SHIFT 2'];
   const shiftHours: string[] = (shiftDef && Array.isArray(shiftDef.hours) && shiftDef.hours.length > 0)
     ? shiftDef.hours
     : ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'];
 
-  // Generator baris fallback terstruktur
   const generateFallbackRows = (hours: string[]): HourlyAnalysisRow[] => {
     return hours.map((hour) => ({
       hour,
@@ -53,33 +50,52 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     }));
   };
 
-  // Pastikan activeMillData selalu memiliki struktur valid
   const rawMillData: MillSessionData | undefined = activeMillTab === 'TM' ? session.tm : session.vrm;
   const activeMillData: MillSessionData = rawMillData || {
     millType: activeMillTab === 'TM' ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)',
     millCode: activeMillTab,
     millNumber: activeMillTab === 'TM' ? 1 : 2,
-    isRunning: true,
-    productType: activeMillTab === 'TM' ? 'PCC Plus FA' : 'OPC G',
-    siloName: 'SILO 4',
-    tphFeeding: 100.0,
-    admixtureName: 'CGA Sika',
-    admixturePpm: 400,
+    isRunning: false,
+    productType: '',
+    siloName: '',
+    tphFeeding: 0,
+    admixtureName: '',
+    admixturePpm: 0,
     hourlyRows: generateFallbackRows(shiftHours),
     proporsiHistory: [],
   };
 
-  // Pastikan baris tabel selalu terisi (fallback array lengkap berdasarkan jam shift aktif)
+  // Cek apakah proporsi benar-benar sudah diaktifkan oleh analis di shift ini (bukan dummy init)
+  const validProporsiHistory = useMemo(() => {
+    return (activeMillData.proporsiHistory || []).filter(
+      (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
+    );
+  }, [activeMillData.proporsiHistory]);
+
+  const isProportionActive = validProporsiHistory.length > 0;
+  const latestActiveProp = isProportionActive ? validProporsiHistory[validProporsiHistory.length - 1] : null;
+  const lockedProductType = latestActiveProp?.productType || (isProportionActive ? activeMillData.productType : '');
+  const lockedSiloName = latestActiveProp?.siloName || (isProportionActive ? activeMillData.siloName : '');
+
   const effectiveRows: HourlyAnalysisRow[] = useMemo(() => {
     const rawRows = activeMillData.hourlyRows;
     if (!rawRows || !Array.isArray(rawRows) || rawRows.length === 0) {
       return generateFallbackRows(shiftHours);
     }
 
-    // Map setiap jam pada shift aktif untuk menjamin tabel tidak pernah kosong
     return shiftHours.map((hour) => {
       const existing = rawRows.find((r) => r.hour === hour);
-      if (existing) return existing;
+      if (existing) {
+        if (!isProportionActive) {
+          return {
+            ...existing,
+            proporsiVersionId: undefined,
+            proporsiDisplay: '',
+            admixtureDisplay: '',
+          };
+        }
+        return existing;
+      }
       return {
         hour,
         blaine: null,
@@ -93,34 +109,114 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
         notes: undefined,
       };
     });
-  }, [activeMillData.hourlyRows, shiftHours]);
+  }, [activeMillData.hourlyRows, shiftHours, isProportionActive]);
 
-  // Self-healing: sinkronisasi state kembali ke session jika hourlyRows di data lokal sebelumnya kosong / undefined
+  const isMillRunningAuto = useMemo(() => {
+    return effectiveRows.some(
+      (r) =>
+        (r.blaine !== null && r.blaine !== undefined) ||
+        (r.residuR45 !== null && r.residuR45 !== undefined) ||
+        (r.moistureH2O !== null && r.moistureH2O !== undefined) ||
+        (r.so3 !== null && r.so3 !== undefined) ||
+        (r.freelimeFCaO !== null && r.freelimeFCaO !== undefined) ||
+        (r.tph !== null && r.tph !== undefined)
+    );
+  }, [effectiveRows]);
+
   useEffect(() => {
-    if (!activeMillData.hourlyRows || activeMillData.hourlyRows.length !== effectiveRows.length) {
+    const needsRowsSync = !activeMillData.hourlyRows || activeMillData.hourlyRows.length !== effectiveRows.length;
+    const needsRunningSync = activeMillData.isRunning !== isMillRunningAuto;
+
+    if (needsRowsSync || needsRunningSync) {
       const updatedMill: MillSessionData = {
         ...activeMillData,
         hourlyRows: effectiveRows,
+        isRunning: isMillRunningAuto,
       };
       onUpdateSession({
         ...session,
         [activeMillTab === 'TM' ? 'tm' : 'vrm']: updatedMill,
       });
     }
-  }, [activeMillTab, activeMillData.hourlyRows?.length, effectiveRows.length]);
+  }, [activeMillTab, activeMillData.hourlyRows?.length, effectiveRows.length, isMillRunningAuto]);
 
-  // Toggle Mill Running / Standby state
-  const handleToggleRunning = () => {
-    const updatedMill: MillSessionData = {
-      ...activeMillData,
-      isRunning: !activeMillData.isRunning,
+  // Sub-Header Target Quality otomatis dari Master Data (HANYA tampil jika proporsi sudah aktif)
+  const qualityTargetText = useMemo(() => {
+    if (!isProportionActive || !lockedProductType) {
+      return {
+        blaine: 'Target: —',
+        residuR45: 'Target: —',
+        moistureH2O: 'Target: —',
+        so3: 'Target: —',
+        freelimeFCaO: 'Target: —',
+      };
+    }
+
+    const specs = getStoredQualitySpecs();
+    const currentProd = lockedProductType.toLowerCase().trim();
+    const spec =
+      specs.find(
+        (s) =>
+          (s.millType === activeMillTab || !s.millType) &&
+          s.productType.toLowerCase().trim() === currentProd
+      ) ||
+      specs.find((s) => s.productType.toLowerCase().trim() === currentProd);
+
+    if (!spec) {
+      return {
+        blaine: 'Target: —',
+        residuR45: 'Target: —',
+        moistureH2O: 'Target: —',
+        so3: 'Target: —',
+        freelimeFCaO: 'Target: —',
+      };
+    }
+
+    const fmtBlaine =
+      spec.blaine.min && spec.blaine.max
+        ? `Target: ${spec.blaine.min} - ${spec.blaine.max}`
+        : spec.blaine.std
+        ? `Target: ${spec.blaine.std}`
+        : 'Target: —';
+
+    const fmtR45 =
+      spec.residuR45.max && !spec.residuR45.min
+        ? `Target: Max ${spec.residuR45.max}%`
+        : spec.residuR45.min && spec.residuR45.max
+        ? `Target: ${spec.residuR45.min} - ${spec.residuR45.max}%`
+        : spec.residuR45.std
+        ? `Target: ${spec.residuR45.std}%`
+        : 'Target: —';
+
+    const fmtH2O = spec.moistureH2O.max
+      ? `Target: Max ${spec.moistureH2O.max}%`
+      : spec.moistureH2O.std
+      ? `Target: Std ${spec.moistureH2O.std}%`
+      : 'Target: —';
+
+    const fmtSO3 =
+      spec.so3.min && spec.so3.max
+        ? `Target: ${spec.so3.min} - ${spec.so3.max}%`
+        : spec.so3.std
+        ? `Target: ${spec.so3.std}%`
+        : 'Target: —';
+
+    const fmtFCaO = spec.freelimeFCaO.max
+      ? `Target: Max ${spec.freelimeFCaO.max}%`
+      : spec.freelimeFCaO.min && spec.freelimeFCaO.max
+      ? `Target: ${spec.freelimeFCaO.min} - ${spec.freelimeFCaO.max}%`
+      : spec.freelimeFCaO.std
+      ? `Target: ${spec.freelimeFCaO.std}%`
+      : 'Target: —';
+
+    return {
+      blaine: fmtBlaine,
+      residuR45: fmtR45,
+      moistureH2O: fmtH2O,
+      so3: fmtSO3,
+      freelimeFCaO: fmtFCaO,
     };
-
-    onUpdateSession({
-      ...session,
-      [activeMillTab === 'TM' ? 'tm' : 'vrm']: updatedMill,
-    });
-  };
+  }, [isProportionActive, lockedProductType, activeMillTab]);
 
   // Cell edit in hourly grid with real-time Cloud UPSERT
   const handleCellChange = (
@@ -143,9 +239,21 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     }
 
     updatedRows[index] = currentRow;
+
+    const hasDataNow = updatedRows.some(
+      (r) =>
+        r.blaine !== null ||
+        r.residuR45 !== null ||
+        r.moistureH2O !== null ||
+        r.so3 !== null ||
+        r.freelimeFCaO !== null ||
+        r.tph !== null
+    );
+
     const updatedMill: MillSessionData = {
       ...activeMillData,
       hourlyRows: updatedRows,
+      isRunning: hasDataNow,
     };
 
     const updatedSession = {
@@ -155,7 +263,6 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
 
     onUpdateSession(updatedSession);
 
-    // Operasi UPSERT ke database dengan composite key { tanggal, shift, mill_type, jam_analisa }
     upsertCloudCell(
       session.date,
       session.shiftName,
@@ -184,26 +291,14 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     }
   };
 
-  // Change Mill Product / Silo
-  const handleMillSpecChange = (field: 'productType' | 'siloName', val: string) => {
-    const updatedMill: MillSessionData = {
-      ...activeMillData,
-      [field]: val,
-    };
-    onUpdateSession({
-      ...session,
-      [activeMillTab === 'TM' ? 'tm' : 'vrm']: updatedMill,
-    });
-  };
-
   // Kalkulasi rata-rata (Averages) untuk footer tabel
   const averages = useMemo(() => {
-    const validBlaine = effectiveRows.map(r => r.blaine).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-    const validR45 = effectiveRows.map(r => r.residuR45).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-    const validH2O = effectiveRows.map(r => r.moistureH2O).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-    const validSO3 = effectiveRows.map(r => r.so3).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-    const validFCaO = effectiveRows.map(r => r.freelimeFCaO).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-    const validTph = effectiveRows.map(r => r.tph).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const validBlaine = effectiveRows.map((r) => r.blaine).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const validR45 = effectiveRows.map((r) => r.residuR45).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const validH2O = effectiveRows.map((r) => r.moistureH2O).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const validSO3 = effectiveRows.map((r) => r.so3).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const validFCaO = effectiveRows.map((r) => r.freelimeFCaO).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    const validTph = effectiveRows.map((r) => r.tph).filter((v): v is number => typeof v === 'number' && !isNaN(v));
 
     return {
       blaine: validBlaine.length > 0 ? Math.round(validBlaine.reduce((a, b) => a + b, 0) / validBlaine.length).toString() : '—',
@@ -215,79 +310,167 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     };
   }, [effectiveRows]);
 
+  // Excel-Like Multi-Cell Copy-Paste Event Handler
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const clipboardData = e.clipboardData.getData('text');
+    if (!clipboardData) return;
+
+    const rows = clipboardData.trim().split(/\r?\n/);
+    if (rows.length === 0) return;
+
+    const activeEl = document.activeElement as HTMLInputElement | null;
+    let startRow = 0;
+    let startColKey = 'blaine';
+
+    if (activeEl && activeEl.dataset && activeEl.dataset.row !== undefined) {
+      startRow = parseInt(activeEl.dataset.row, 10) || 0;
+      startColKey = activeEl.dataset.col || 'blaine';
+    }
+
+    const columnKeys: (keyof HourlyAnalysisRow)[] = [
+      'blaine',
+      'residuR45',
+      'moistureH2O',
+      'so3',
+      'freelimeFCaO',
+      'tph',
+      'notes'
+    ];
+
+    const startColIndex = Math.max(0, columnKeys.indexOf(startColKey as any));
+    const updatedRows = [...effectiveRows];
+
+    rows.forEach((rowText, rIdx) => {
+      const targetRowIdx = startRow + rIdx;
+      if (targetRowIdx >= updatedRows.length) return;
+
+      const cells = rowText.split('\t');
+      const rowData = { ...updatedRows[targetRowIdx] };
+
+      cells.forEach((cellVal, cIdx) => {
+        const targetColIdx = startColIndex + cIdx;
+        if (targetColIdx >= columnKeys.length) return;
+
+        const colKey = columnKeys[targetColIdx];
+        const trimmed = cellVal.trim();
+
+        if (colKey === 'notes') {
+          rowData.notes = trimmed || undefined;
+          upsertCloudCell(session.date, session.shiftName, activeMillTab, rowData.hour, 'notes', trimmed);
+        } else if (colKey === 'proporsiDisplay' || colKey === 'admixtureDisplay' || colKey === 'hour') {
+          // skip read-only display fields
+        } else {
+          if (trimmed === '') {
+            (rowData as any)[colKey] = null;
+            upsertCloudCell(session.date, session.shiftName, activeMillTab, rowData.hour, colKey, null);
+          } else {
+            const parsed = parseFloat(trimmed.replace(',', '.'));
+            const finalVal = isNaN(parsed) ? null : parsed;
+            (rowData as any)[colKey] = finalVal;
+            upsertCloudCell(session.date, session.shiftName, activeMillTab, rowData.hour, colKey, finalVal);
+          }
+        }
+      });
+
+      updatedRows[targetRowIdx] = rowData;
+    });
+
+    const hasDataNow = updatedRows.some(
+      (r) =>
+        r.blaine !== null ||
+        r.residuR45 !== null ||
+        r.moistureH2O !== null ||
+        r.so3 !== null ||
+        r.freelimeFCaO !== null ||
+        r.tph !== null
+    );
+
+    const updatedMill: MillSessionData = {
+      ...activeMillData,
+      hourlyRows: updatedRows,
+      isRunning: hasDataNow,
+    };
+
+    onUpdateSession({
+      ...session,
+      [activeMillTab === 'TM' ? 'tm' : 'vrm']: updatedMill,
+    });
+  };
+
   return (
-    <div className="space-y-4 font-sans">
+    <div onPaste={handlePaste} className="space-y-4 font-sans">
 
       {/* Dual-Mill Switcher Bar & Mill Status Controls */}
       <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
-          {/* Sub-Tab Switcher: TM (Mill 1) first, VRM (Mill 2) second */}
+          {/* Sub-Tab Switcher: TM terlebih dahulu, kemudian VRM */}
           <div className="flex items-center gap-1.5 p-1 bg-slate-200 border-2 border-slate-400 rounded-lg shrink-0">
             <button
               onClick={() => setActiveMillTab('TM')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeMillTab === 'TM'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
                   : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-amber-600" />
-              <span>Mill 1: TM</span>
-              <span className={`w-2.5 h-2.5 rounded-full ${session.tm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-400'}`} />
+              <span>TM</span>
+              <span className={`w-2 h-2 rounded-full ${session.tm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-400'}`} />
             </button>
 
             <button
               onClick={() => setActiveMillTab('VRM')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeMillTab === 'VRM'
                   ? 'bg-white text-slate-900 shadow-sm border border-slate-400'
                   : 'text-slate-700 hover:text-slate-900'
               }`}
             >
               <Factory className="w-4 h-4 text-[#0284C7]" />
-              <span>Mill 2: VRM</span>
-              <span className={`w-2.5 h-2.5 rounded-full ${session.vrm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-400'}`} />
+              <span>VRM</span>
+              <span className={`w-2 h-2 rounded-full ${session.vrm.isRunning ? 'bg-[#16A34A]' : 'bg-slate-400'}`} />
             </button>
           </div>
 
-          {/* Right Status Controls: Running/Stop Toggle, Product spec, Silo & Ekspor Excel */}
+          {/* Right Status Controls: Deteksi Running Otomatis, Read-only Product & Silo Badges & Ekspor Excel */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Status Running / Standby */}
-            <button
-              type="button"
-              onClick={handleToggleRunning}
-              className={`px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors shadow-2xs ${
-                activeMillData.isRunning
-                  ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-400 hover:bg-emerald-200'
-                  : 'bg-slate-200 text-slate-700 border-2 border-slate-400 hover:bg-slate-300'
+            <div
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 shadow-2xs select-none ${
+                isMillRunningAuto
+                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-400'
+                  : 'bg-slate-100 text-slate-600 border border-slate-300'
               }`}
+              title={isMillRunningAuto ? 'Mill terdeteksi running otomatis dari keberadaan data' : 'Mill standby (belum ada data terinput)'}
             >
-              <Power className={`w-3.5 h-3.5 ${activeMillData.isRunning ? 'text-emerald-600' : 'text-slate-500'}`} />
-              <span>{activeMillData.isRunning ? 'STATUS: RUNNING' : 'STATUS: STANDBY'}</span>
-            </button>
+              {isMillRunningAuto ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>STATUS: RUNNING</span>
+                </>
+              ) : (
+                <>
+                  <CircleDashed className="w-3.5 h-3.5 text-slate-400" />
+                  <span>STATUS: STANDBY</span>
+                </>
+              )}
+            </div>
 
-            {/* Product Type Input/Dropdown */}
-            <input
-              type="text"
-              value={activeMillData.productType}
-              onChange={(e) => handleMillSpecChange('productType', e.target.value)}
-              placeholder="Jenis Produk..."
-              className="px-3 py-2 font-bold bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 text-xs w-36 focus:bg-white"
-            />
+            {/* Read-Only Badge: Jenis Produk Paten */}
+            <div className="px-3 py-1.5 font-bold bg-slate-100 border-2 border-slate-300 rounded-lg text-slate-800 text-xs flex items-center gap-1.5 select-none">
+              <span className="text-slate-500 uppercase text-[10px]">Produk:</span>
+              <span className={`font-mono font-bold ${isProportionActive && lockedProductType ? 'text-slate-900' : 'text-amber-700 italic'}`}>
+                {isProportionActive && lockedProductType ? lockedProductType : 'BELUM AKTIF'}
+              </span>
+            </div>
 
-            {/* Default Silo Dropdown */}
-            <select
-              value={activeMillData.siloName}
-              onChange={(e) => handleMillSpecChange('siloName', e.target.value)}
-              className="px-3 py-2 font-bold bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 text-xs focus:bg-white"
-            >
-              {DEFAULT_SILO_OPTIONS.map((silo) => (
-                <option key={silo} value={silo}>
-                  {silo}
-                </option>
-              ))}
-            </select>
+            {/* Read-Only Badge: Silo Paten */}
+            <div className="px-3 py-1.5 font-bold bg-slate-100 border-2 border-slate-300 rounded-lg text-slate-800 text-xs flex items-center gap-1.5 select-none">
+              <span className="text-slate-500 uppercase text-[10px]">Silo:</span>
+              <span className={`font-mono font-bold ${isProportionActive && lockedSiloName ? 'text-[#0284C7]' : 'text-amber-700 italic'}`}>
+                {isProportionActive && lockedSiloName ? lockedSiloName : 'BELUM AKTIF'}
+              </span>
+            </div>
 
             {/* Button: Ekspor Excel (.xlsx) */}
             <button
@@ -304,54 +487,84 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
         </div>
       </div>
 
-      {/* Main Excel-like Data Grid with Solid Header & TPH Feeding */}
+      {/* Empty State Gatekeeper Banner */}
+      {!isProportionActive && (
+        <div className="bg-amber-50 border-2 border-amber-500 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-900 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span className="text-xs sm:text-sm font-bold">
+              Proporsi belum aktif untuk shift ini. Silakan atur dan aktifkan proporsi pada menu Proporsi terlebih dahulu.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateToProporsi(activeMillTab)}
+            className="px-4 py-2 bg-[#0284C7] hover:bg-sky-700 text-white font-bold text-xs rounded-lg shadow-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+          >
+            <span>Atur & Aktifkan Proporsi ({activeMillTab})</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Main Excel-like Data Grid with Solid Header, Centered Text & Sub-Header Target Quality */}
       <div className="bg-white border-2 border-slate-500 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto relative">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full border-collapse text-xs">
             <thead>
-              {/* Header Kolom Wajib Laboratorium */}
               <tr className="bg-slate-700 text-white font-bold border-b-2 border-slate-500 select-none">
-                {/* 1. Kolom Waktu / Jam (Sticky) */}
-                <th className="py-2.5 px-3 border-r border-slate-500 w-20 text-center font-mono sticky left-0 bg-slate-800 z-10">
-                  <div className="flex items-center justify-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-amber-300" />
-                    <span>JAM</span>
+                <th className="py-2.5 px-3 border-r border-slate-500 w-20 text-center align-middle font-mono sticky left-0 bg-slate-800 z-10 text-white font-bold">
+                  JAM
+                </th>
+
+                <th className="py-2 px-3 border-r border-slate-500 w-28 text-center align-middle bg-slate-700">
+                  <div className="font-bold tracking-wide">BLAINE</div>
+                  <div className="text-[10px] font-normal text-amber-300 font-sans mt-0.5 tracking-tight">
+                    {qualityTargetText.blaine}
                   </div>
                 </th>
-                {/* 2. Kolom Blaine */}
-                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right bg-slate-700">
-                  BLAINE
+
+                <th className="py-2 px-3 border-r border-slate-500 w-28 text-center align-middle bg-slate-700">
+                  <div className="font-bold tracking-wide">RESIDU 45um</div>
+                  <div className="text-[10px] font-normal text-amber-300 font-sans mt-0.5 tracking-tight">
+                    {qualityTargetText.residuR45}
+                  </div>
                 </th>
-                {/* 3. Kolom Residu (R45) */}
-                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right bg-slate-700">
-                  RESIDU (R45)
+
+                <th className="py-2 px-3 border-r border-slate-500 w-28 text-center align-middle bg-slate-700">
+                  <div className="font-bold tracking-wide">H2O</div>
+                  <div className="text-[10px] font-normal text-sky-300 font-sans mt-0.5 tracking-tight">
+                    {qualityTargetText.moistureH2O}
+                  </div>
                 </th>
-                {/* 4. Kolom H2O (Moisture) */}
-                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right bg-slate-700">
-                  H2O (MOIST)
+
+                <th className="py-2 px-3 border-r border-slate-500 w-28 text-center align-middle bg-slate-700">
+                  <div className="font-bold tracking-wide">SO3</div>
+                  <div className="text-[10px] font-normal text-sky-300 font-sans mt-0.5 tracking-tight">
+                    {qualityTargetText.so3}
+                  </div>
                 </th>
-                {/* 5. Kolom SO3 (XRF) */}
-                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right bg-slate-700">
-                  SO3 (XRF)
+
+                <th className="py-2 px-3 border-r border-slate-500 w-28 text-center align-middle bg-slate-700">
+                  <div className="font-bold tracking-wide">FCaO</div>
+                  <div className="text-[10px] font-normal text-amber-300 font-sans mt-0.5 tracking-tight">
+                    {qualityTargetText.freelimeFCaO}
+                  </div>
                 </th>
-                {/* 6. Kolom FCaO (Freelime) */}
-                <th className="py-2.5 px-3 border-r border-slate-500 w-24 text-right bg-slate-700">
-                  FCaO (FREELIME)
-                </th>
-                {/* 7. Kolom TPH / Feeding CCR */}
-                <th className="py-2.5 px-3 border-r border-slate-500 w-28 text-right bg-slate-800 text-amber-300">
+
+                <th className="py-2.5 px-3 border-r border-slate-500 w-28 text-center align-middle bg-slate-800 text-amber-300 font-bold">
                   TPH FEEDING
                 </th>
-                {/* 8. Proporsi Aktif */}
-                <th className="py-2.5 px-3 border-r border-slate-500 min-w-44 text-left">
+
+                <th className="py-2.5 px-3 border-r border-slate-500 min-w-44 text-center align-middle">
                   PROPORSI AKTIF
                 </th>
-                {/* 9. Admixture */}
-                <th className="py-2.5 px-3 border-r border-slate-500 w-36 text-left">
+
+                <th className="py-2.5 px-3 border-r border-slate-500 w-36 text-center align-middle">
                   ADMIXTURE
                 </th>
-                {/* 10. Catatan */}
-                <th className="py-2.5 px-3 min-w-36 text-left">
+
+                <th className="py-2.5 px-3 min-w-36 text-center align-middle">
                   CATATAN
                 </th>
               </tr>
@@ -385,7 +598,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                       />
                     </td>
 
-                    {/* Residu R45 */}
+                    {/* Residu 45um */}
                     <td className="p-0 border-r border-slate-300 bg-red-50/15">
                       <input
                         type="number"
@@ -419,7 +632,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                       />
                     </td>
 
-                    {/* SO3 (XRF) */}
+                    {/* SO3 */}
                     <td className="p-0 border-r border-slate-300 bg-sky-50/20">
                       <input
                         type="number"
@@ -470,14 +683,14 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
                       />
                     </td>
 
-                    {/* Proporsi Aktif Display */}
+                    {/* Proporsi Aktif Display — KOSONG jika proporsi belum diaktifkan */}
                     <td className="py-2 px-3 border-r border-slate-300 text-slate-700 text-[11px] truncate max-w-xs">
-                      {row.proporsiDisplay || `${activeMillData.proporsiHistory[0]?.materials.clinker.dry ?? 72}% Clk | ...`}
+                      {isProportionActive && row.proporsiDisplay ? row.proporsiDisplay : '—'}
                     </td>
 
-                    {/* Admixture Display */}
+                    {/* Admixture Display — KOSONG jika proporsi belum diaktifkan */}
                     <td className="py-2 px-3 border-r border-slate-300 text-slate-700 text-[11px] truncate">
-                      {row.admixtureDisplay || `${activeMillData.admixtureName} ${activeMillData.admixturePpm} PPM`}
+                      {isProportionActive && row.admixtureDisplay ? row.admixtureDisplay : '—'}
                     </td>
 
                     {/* Notes */}

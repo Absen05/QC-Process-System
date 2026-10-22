@@ -50,7 +50,7 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
     ];
 
     if (field === 'productType' || field === 'siloName' || field === 'label') {
-      (nextCp[index] as any)[field] = val;
+      (nextCp[index] as any)[field] = typeof val === 'string' ? val.toUpperCase() : val;
     } else {
       const num = val === '' ? null : parseFloat(val);
       (nextCp[index] as any)[field] = isNaN(num as number) ? null : num;
@@ -155,7 +155,7 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
                 </button>
               </div>
 
-              {/* Product and Silo Pure Free-Text Inputs (Poin 3) */}
+              {/* Product and Silo Pure Free-Text Inputs (Poin I.B: Input Otomatis Huruf Kapital / CAPSLOCK) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
                   <label className="block text-slate-700 font-bold mb-1 text-[11px]">
@@ -163,13 +163,14 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="misal: PCC Flexiplus, OPC G, SPK..."
+                    placeholder="MISAL: PCC FLEXIPLUS, OPC G, SPK..."
                     value={cp.productType}
-                    onChange={(e) => handleUpdateCp(idx as 0 | 1, 'productType', e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
+                    onChange={(e) => handleUpdateCp(idx as 0 | 1, 'productType', e.target.value.toUpperCase())}
+                    style={{ textTransform: 'uppercase' }}
+                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-bold text-slate-900 uppercase focus:bg-white focus:outline-none focus:border-slate-600"
                   />
                   <span className="text-[10px] text-slate-500 mt-0.5 block">
-                    Ketik manual nama produk yang diproduksi
+                    Ketik manual nama produk yang diproduksi (otomatis huruf besar)
                   </span>
                 </div>
 
@@ -179,13 +180,14 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="misal: Silo 1, Silo 2, Silo 3..."
+                    placeholder="MISAL: SILO 1, SILO 2, SILO 3..."
                     value={cp.siloName}
-                    onChange={(e) => handleUpdateCp(idx as 0 | 1, 'siloName', e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
+                    onChange={(e) => handleUpdateCp(idx as 0 | 1, 'siloName', e.target.value.toUpperCase())}
+                    style={{ textTransform: 'uppercase' }}
+                    className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 uppercase focus:bg-white focus:outline-none focus:border-slate-600"
                   />
                   <span className="text-[10px] text-slate-500 mt-0.5 block">
-                    Ketik manual nomor silo penampungan
+                    Ketik manual nomor silo penampungan (otomatis huruf besar)
                   </span>
                 </div>
               </div>

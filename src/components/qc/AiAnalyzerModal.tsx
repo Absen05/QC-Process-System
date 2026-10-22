@@ -24,7 +24,7 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
     try {
       // Compile Dual-Mill summary for server-side Gemini
       const tmSummary = {
-        mill: 'Tube Mill (TM - Mill 1)',
+        mill: 'Tube Mill (TM)',
         isRunning: session.tm.isRunning,
         produk: session.tm.productType,
         silo: session.tm.siloName,
@@ -35,7 +35,7 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
       };
 
       const vrmSummary = {
-        mill: 'Vertical Roller Mill (VRM - Mill 2)',
+        mill: 'Vertical Roller Mill (VRM)',
         isRunning: session.vrm.isRunning,
         produk: session.vrm.productType,
         silo: session.vrm.siloName,
@@ -71,7 +71,7 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
       });
     } catch (err) {
       console.error('AI Analysis failed:', err);
-      const fallbackInsight = `Analisa QC Shift: Operasi ${session.tm.isRunning ? 'TM (Mill 1)' : ''} ${session.vrm.isRunning ? 'dan VRM (Mill 2)' : ''} terpantau stabil dalam rentang target kehalusan Blaine dan residu R45. Nilai SO3 dan kelembapan produk akhir berada dalam spesifikasi mutu PT Cemindo Gemilang Tbk.`;
+      const fallbackInsight = `Analisa QC Shift: Operasi ${session.tm.isRunning ? 'TM' : ''} ${session.vrm.isRunning ? 'dan VRM' : ''} terpantau stabil dalam rentang target kehalusan Blaine dan residu R45. Nilai SO3 dan kelembapan produk akhir berada dalam spesifikasi mutu PT Cemindo Gemilang Tbk.`;
       onUpdateSession({
         ...session,
         aiInsight: fallbackInsight,
@@ -117,7 +117,7 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
             <div className={`p-2.5 rounded-lg border ${session.tm.isRunning ? 'bg-amber-50/50 border-amber-300' : 'bg-slate-50 border-slate-300'}`}>
               <div className="font-bold text-slate-900 flex items-center gap-1.5 mb-1">
                 <Factory className="w-3.5 h-3.5 text-amber-600" />
-                <span>Mill 1 (TM)</span>
+                <span>TM</span>
               </div>
               <div className="text-slate-600 font-mono text-[11px]">
                 {session.tm.isRunning ? `${session.tm.productType} · ${session.tm.siloName}` : 'Standby / Tidak Beroperasi'}
@@ -127,7 +127,7 @@ export const AiAnalyzerModal: React.FC<AiAnalyzerModalProps> = ({
             <div className={`p-2.5 rounded-lg border ${session.vrm.isRunning ? 'bg-sky-50/50 border-sky-300' : 'bg-slate-50 border-slate-300'}`}>
               <div className="font-bold text-slate-900 flex items-center gap-1.5 mb-1">
                 <Factory className="w-3.5 h-3.5 text-[#0284C7]" />
-                <span>Mill 2 (VRM)</span>
+                <span>VRM</span>
               </div>
               <div className="text-slate-600 font-mono text-[11px]">
                 {session.vrm.isRunning ? `${session.vrm.productType} · ${session.vrm.siloName}` : 'Standby / Tidak Beroperasi'}

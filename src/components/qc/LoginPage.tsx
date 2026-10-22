@@ -53,8 +53,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
 
     if (targetUser.pin !== pin) {
-      const defaultHint = targetUser.role === 'supervisor' ? '123456' : '456789';
-      setErrorMessage(`PIN yang Anda masukkan salah. (PIN default: ${defaultHint}). Hubungi SI jika lupa PIN.`);
+      setErrorMessage('PIN yang Anda masukkan salah. Hubungi SI jika lupa PIN.');
       return;
     }
 
@@ -162,9 +161,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <label className="block text-slate-800 font-bold text-[11px]">
                 PIN Keamanan (6 Digit)
               </label>
-              <span className="text-[10px] text-slate-500 font-mono">
-                {selectedRole === 'supervisor' ? 'Default: 123456' : 'Default: 456789'}
-              </span>
             </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">

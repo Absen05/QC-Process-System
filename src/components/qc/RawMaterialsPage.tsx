@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShiftSession, UnifiedIncomingMaterial, IncomingParamKey } from '../../types/qc';
-import { Plus, Trash2, Truck, X, Edit3, Check } from 'lucide-react';
+import { Plus, Trash2, Truck, X, Edit3, Check, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 
 interface RawMaterialsPageProps {
   session: ShiftSession;
   onUpdateSession: (updated: ShiftSession) => void;
 }
 
+// Poin I.C.2: Parameter "Kadar / Nilai" dihapus sepenuhnya dari pilihan dan tampilan
 const PARAMETER_CHECKLIST: { key: IncomingParamKey; label: string; unit: string; step: string }[] = [
-  { key: 'valuePercent', label: 'Kadar / Nilai (%)', unit: '%', step: '0.01' },
-  { key: 'blaine', label: 'Blaine', unit: 'cm²/gr', step: '1' },
-  { key: 'r45', label: 'R45 (Residu)', unit: '%', step: '0.01' },
   { key: 'h2o', label: 'H2O (Moisture)', unit: '%', step: '0.01' },
+  { key: 'blaine', label: 'Blaine', unit: 'cm²/gr', step: '1' },
+  { key: 'r45', label: 'R45 (Residu 45um)', unit: '%', step: '0.01' },
   { key: 'so3', label: 'SO3', unit: '%', step: '0.01' },
   { key: 'fcao', label: 'F-CaO (Freelime)', unit: '%', step: '0.01' },
   { key: 'c3s', label: 'C3S', unit: '%', step: '0.1' },
@@ -25,17 +25,54 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMaterialName, setNewMaterialName] = useState('');
-  const [selectedParams, setSelectedParams] = useState<IncomingParamKey[]>(['valuePercent']);
+  const [selectedParams, setSelectedParams] = useState<IncomingParamKey[]>(['h2o']);
 
   // Edit Material Parameter modal state
   const [editingMaterial, setEditingMaterial] = useState<UnifiedIncomingMaterial | null>(null);
   const [editMaterialName, setEditMaterialName] = useState('');
   const [editParams, setEditParams] = useState<IncomingParamKey[]>([]);
 
-  // Delete Material confirmation modal state (Poin 2)
+  // Delete Material confirmation modal state
   const [materialToDelete, setMaterialToDelete] = useState<UnifiedIncomingMaterial | null>(null);
 
-  // Handle single param edit in card inputs (Point 4: Flexible pure decimal input)
+  // Auto-clean any legacy 'valuePercent' into 'h2o' to guarantee pure parameters
+  useEffect(() => {
+    let hasLegacy = false;
+    const cleaned = session.incomingMaterials.map(m => {
+      if (m.enabledParams.includes('valuePercent')) {
+        hasLegacy = true;
+        const newParams = { ...m.params };
+        if (newParams.valuePercent !== undefined && newParams.h2o === undefined) {
+          newParams.h2o = newParams.valuePercent;
+        }
+        delete newParams.valuePercent;
+        const newEnabled = m.enabledParams.map(p => p === 'valuePercent' ? 'h2o' : p);
+        return { ...m, enabledParams: newEnabled, params: newParams };
+      }
+      return m;
+    });
+
+    if (hasLegacy) {
+      onUpdateSession({ ...session, incomingMaterials: cleaned });
+    }
+  }, []);
+
+  // Poin I.C.1: Pengatur Urutan Card (Reordering naik / turun)
+  const handleMoveCard = (fromIndex: number, delta: number) => {
+    const toIndex = fromIndex + delta;
+    if (toIndex < 0 || toIndex >= session.incomingMaterials.length) return;
+
+    const list = [...session.incomingMaterials];
+    const [moved] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, moved);
+
+    onUpdateSession({
+      ...session,
+      incomingMaterials: list,
+    });
+  };
+
+  // Handle single param edit in card inputs
   const handleParamChange = (
     matId: string,
     paramKey: IncomingParamKey,
@@ -66,11 +103,13 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
     onUpdateSession({ ...session, incomingMaterials: updated });
   };
 
-  // Open Edit Parameter Modal for any item (Poin 4)
+  // Open Edit Parameter Modal for any item
   const handleOpenEditModal = (mat: UnifiedIncomingMaterial) => {
     setEditingMaterial(mat);
     setEditMaterialName(mat.name);
-    setEditParams([...mat.enabledParams]);
+    // Filter out any legacy 'valuePercent'
+    const safeParams = mat.enabledParams.map(p => p === 'valuePercent' ? 'h2o' : p);
+    setEditParams([...safeParams]);
   };
 
   const handleToggleEditParam = (key: IncomingParamKey) => {
@@ -102,12 +141,12 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
     setEditingMaterial(null);
   };
 
-  // Delete material
-  const handleDelete = (matId: string) => {
-    if (confirm('Hapus material incoming ini?')) {
-      const updated = session.incomingMaterials.filter(m => m.id !== matId);
-      onUpdateSession({ ...session, incomingMaterials: updated });
-    }
+  // Delete material confirmed
+  const handleConfirmDelete = () => {
+    if (!materialToDelete) return;
+    const updated = session.incomingMaterials.filter(m => m.id !== materialToDelete.id);
+    onUpdateSession({ ...session, incomingMaterials: updated });
+    setMaterialToDelete(null);
   };
 
   // Toggle checkbox in add modal
@@ -145,7 +184,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
     });
 
     setNewMaterialName('');
-    setSelectedParams(['valuePercent']);
+    setSelectedParams(['h2o']);
     setShowAddModal(false);
   };
 
@@ -167,7 +206,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 text-xs font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+          className="px-4 py-2 text-xs font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>+ Tambah Incoming</span>
@@ -176,38 +215,64 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
 
       {/* Unified Material Grid Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-        {session.incomingMaterials.map((mat) => {
-          const isSimpleSingle = mat.enabledParams.length === 1 && mat.enabledParams[0] === 'valuePercent';
-          const isSingleWithStatus = mat.enabledParams.length === 2 && mat.enabledParams.includes('valuePercent') && mat.enabledParams.includes('statusText');
+        {session.incomingMaterials.map((mat, idx) => {
+          const isSingleH2oOnly = mat.enabledParams.length === 1 && (mat.enabledParams[0] === 'h2o' || mat.enabledParams[0] === 'valuePercent');
+          const isH2oWithStatus = mat.enabledParams.length === 2 && 
+            (mat.enabledParams.includes('h2o') || mat.enabledParams.includes('valuePercent')) && 
+            mat.enabledParams.includes('statusText');
 
           return (
             <div 
               key={mat.id}
               className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm hover:border-slate-600 transition-colors flex flex-col justify-between space-y-3"
             >
-              {/* Card Title & Edit Parameter Button (Poin 4) */}
+              {/* Card Title, Reordering Nav & Actions */}
               <div className="flex items-center justify-between pb-2 border-b-2 border-slate-200">
-                <span className="text-xs font-bold text-slate-900 font-mono">
-                  {mat.name}
-                </span>
+                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                  {/* Poin I.C.1: Tombol Navigasi Panah Naik / Turun (Reordering) */}
+                  <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded border border-slate-300 shrink-0">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => handleMoveCard(idx, -1)}
+                      className="p-1 rounded hover:bg-slate-200 disabled:opacity-20 text-slate-700 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                      title="Pindahkan kartu ke atas / urutan sebelumnya"
+                    >
+                      <ChevronUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === session.incomingMaterials.length - 1}
+                      onClick={() => handleMoveCard(idx, 1)}
+                      className="p-1 rounded hover:bg-slate-200 disabled:opacity-20 text-slate-700 transition-colors cursor-pointer disabled:cursor-not-allowed"
+                      title="Pindahkan kartu ke bawah / urutan berikutnya"
+                    >
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                  </div>
 
-                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-900 font-mono truncate" title={mat.name}>
+                    {mat.name}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
                   {/* Solid Blue Button: Edit Parameter */}
                   <button
                     type="button"
                     onClick={() => handleOpenEditModal(mat)}
-                    className="px-2 py-1 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded text-[11px] flex items-center gap-1 shadow-2xs transition-colors"
+                    className="px-2 py-1 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded text-[11px] flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
                     title="Ubah parameter checklist analisa untuk material ini"
                   >
                     <Edit3 className="w-3 h-3" />
                     <span>Edit</span>
                   </button>
 
-                  {/* Solid Red Button: Hapus (Poin 2 - pada setiap kartu dengan modal konfirmasi) */}
+                  {/* Solid Red Button: Hapus */}
                   <button
                     type="button"
                     onClick={() => setMaterialToDelete(mat)}
-                    className="px-2 py-1 bg-[#E31E24] hover:bg-red-700 text-white font-bold rounded text-[11px] flex items-center gap-1 shadow-2xs transition-colors"
+                    className="px-2 py-1 bg-[#E31E24] hover:bg-red-700 text-white font-bold rounded text-[11px] flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
                     title="Hapus material incoming ini"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -216,15 +281,15 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                 </div>
               </div>
 
-              {/* Dynamic Param Inputs - Pure decimal input, no preset selectors (Poin 4) */}
+              {/* Dynamic Param Inputs - Pure parameter labels, no "Kadar / Nilai" */}
               <div className="space-y-2">
-                {isSimpleSingle || isSingleWithStatus ? (
+                {isSingleH2oOnly || isH2oWithStatus ? (
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-[11px] font-bold text-slate-700 uppercase">
-                        Kadar / Nilai Analisa (%)
+                        H2O / Moisture (%)
                       </label>
-                      <span className="text-[10px] text-slate-500 font-mono">Angka desimal (cth: 9.2)</span>
+                      <span className="text-[10px] text-slate-500 font-mono">Angka desimal (cth: 3.82)</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1">
@@ -232,8 +297,8 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                           type="text"
                           inputMode="decimal"
                           placeholder="Ketik angka desimal..."
-                          value={mat.params.valuePercent !== null && mat.params.valuePercent !== undefined ? mat.params.valuePercent : ''}
-                          onChange={(e) => handleParamChange(mat.id, 'valuePercent', e.target.value)}
+                          value={mat.params.h2o !== null && mat.params.h2o !== undefined ? mat.params.h2o : (mat.params.valuePercent ?? '')}
+                          onChange={(e) => handleParamChange(mat.id, 'h2o', e.target.value)}
                           className="w-full px-3 py-2 text-sm font-mono font-bold text-slate-900 bg-slate-50 border-2 border-slate-400 rounded-lg focus:bg-white focus:border-slate-600 focus:outline-none"
                         />
                       </div>
@@ -253,7 +318,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                 ) : (
                   /* Multi-parameter layout */
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    {mat.enabledParams.map(paramKey => {
+                    {mat.enabledParams.filter(p => p !== 'valuePercent').map(paramKey => {
                       const def = PARAMETER_CHECKLIST.find(p => p.key === paramKey);
                       if (!def) return null;
 
@@ -298,7 +363,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
         })}
       </div>
 
-      {/* Modal: Edit Parameter Material (Poin 4) */}
+      {/* Modal: Edit Parameter Material */}
       {editingMaterial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border-2 border-slate-500 overflow-hidden">
@@ -355,13 +420,13 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingMaterial(null)}
-                  className="px-4 py-2 text-white bg-[#334155] hover:bg-slate-800 rounded-lg font-bold"
+                  className="px-4 py-2 text-white bg-[#334155] hover:bg-slate-800 rounded-lg font-bold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm"
+                  className="px-5 py-2 font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm cursor-pointer"
                 >
                   Simpan Perubahan
                 </button>
@@ -430,13 +495,13 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-white bg-[#334155] hover:bg-slate-800 rounded-lg font-bold"
+                  className="px-4 py-2 text-white bg-[#334155] hover:bg-slate-800 rounded-lg font-bold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-sm"
+                  className="px-5 py-2 font-bold text-white bg-[#E31E24] hover:bg-red-700 rounded-lg shadow-sm cursor-pointer"
                 >
                   Simpan Incoming
                 </button>
@@ -447,50 +512,32 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
         </div>
       )}
 
-      {/* Delete Confirmation Modal (Poin 2) */}
+      {/* Delete Confirmation Modal */}
       {materialToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border-2 border-slate-500 overflow-hidden">
-            <div className="bg-slate-800 px-5 py-4 border-b-2 border-slate-600 flex items-center justify-between text-white">
-              <div className="flex items-center gap-2">
-                <Trash2 className="w-4 h-4 text-[#E31E24]" />
-                <h3 className="text-sm font-bold uppercase">Konfirmasi Hapus Material</h3>
-              </div>
-              <button 
-                onClick={() => setMaterialToDelete(null)}
-                className="text-slate-400 hover:text-white p-1 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border-2 border-slate-500 overflow-hidden">
             <div className="p-5 space-y-4 text-xs font-sans">
-              <p className="text-slate-700 leading-relaxed">
-                Apakah Anda yakin ingin menghapus material incoming <strong className="text-slate-900 font-mono">[{materialToDelete.name}]</strong>?
-              </p>
-              <div className="p-3 bg-red-50 border border-red-300 rounded-lg text-red-900 text-[11px]">
-                Tindakan ini akan menghapus kartu material ini dari daftar input dan laporan akhir shift WhatsApp.
+              <div className="flex items-center gap-2.5 text-red-600">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <h3 className="text-sm font-bold">Hapus Incoming Material</h3>
               </div>
-
+              <p className="text-slate-600">
+                Apakah Anda yakin ingin menghapus <strong>{materialToDelete.name}</strong> dari daftar incoming shift ini?
+              </p>
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setMaterialToDelete(null)}
-                  className="px-4 py-2 bg-[#334155] hover:bg-slate-800 text-white font-bold rounded-lg transition-colors"
+                  className="px-3.5 py-1.5 bg-[#334155] hover:bg-slate-800 text-white font-bold rounded-lg cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const updated = session.incomingMaterials.filter(m => m.id !== materialToDelete.id);
-                    onUpdateSession({ ...session, incomingMaterials: updated });
-                    setMaterialToDelete(null);
-                  }}
-                  className="px-4 py-2 bg-[#E31E24] hover:bg-red-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-1.5 bg-[#E31E24] hover:bg-red-700 text-white font-bold rounded-lg shadow-sm cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Ya, Hapus Material</span>
+                  Ya, Hapus
                 </button>
               </div>
             </div>

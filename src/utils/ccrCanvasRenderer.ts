@@ -24,6 +24,7 @@ export interface CcrRenderData {
   totalMassaBasah?: number;
   airMenguap?: number;
   opcWarning?: string;
+  targetQualitySummary?: string;
 }
 
 function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -91,8 +92,10 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
   const rowH = 32;
   const sumBoxH = 68;
   const totalRowsCount = activeItems.length + 2; // header + active items + total
-  const tableH = rowH * totalRowsCount;
-  const mainCardH = 58 + tableH + 14 + sumBoxH + 20;
+  const tableH = totalRowsCount * rowH;
+  const hasTargetQuality = Boolean(data.targetQualitySummary);
+  const targetQualityH = hasTargetQuality ? 32 : 0;
+  const mainCardH = 58 + targetQualityH + tableH + 14 + sumBoxH + 20;
 
   const pad = 20;
   const headerCardY = pad;
@@ -222,11 +225,30 @@ export async function renderCcrImage(data: CcrRenderData): Promise<string> {
   ctx.fillText('WET BASE', badgeX + badgeW / 2, badgeY + 16);
 
   // ==========================================
+  // Badge Target Quality (Poin I.D.2)
+  // ==========================================
+  if (data.targetQualitySummary) {
+    const tqY = mainCardY + 54;
+    const tqW = cardW - 36;
+    drawRoundedRect(ctx, pad + 18, tqY, tqW, 24, 6);
+    ctx.fillStyle = '#EFF6FF'; // bg-blue-50
+    ctx.fill();
+    ctx.strokeStyle = '#BAE6FD'; // border-sky-300
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#0369A1'; // text-sky-700
+    ctx.font = 'bold 10px "Plus Jakarta Sans", system-ui, sans-serif';
+    ctx.fillText(`TARGET QUALITY: ${data.targetQualitySummary}`, pad + 28, tqY + 16);
+  }
+
+  // ==========================================
   // Tabel Kalkulasi Proporsi (5 Kolom)
   // MATERIAL | %DRY | MOIST | W BASAH | %WET
   // ==========================================
   const tableX = pad + 18;
-  const tableY = mainCardY + 58;
+  const tableY = mainCardY + 58 + targetQualityH;
   const tableW = cardW - 36;
   const colW = [124, 100, 100, 120, tableW - (124 + 100 + 100 + 120)];
 

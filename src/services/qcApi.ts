@@ -1,5 +1,6 @@
 import { ShiftSession, ShiftName } from '../types/qc';
 import { getStoredActiveSession, saveStoredActiveSession } from './qcStorage';
+import { sanitizeShiftSession } from '../data/qcDefaults';
 
 /**
  * Service API Sinkronisasi Cloud Database (Poin 2 & 3)
@@ -16,8 +17,9 @@ export async function fetchCloudSession(date: string, shift: ShiftName): Promise
     if (res.ok) {
       const data = await res.json();
       if (data.session) {
-        // Cache to localStorage as backup
-        saveStoredActiveSession(data.session);
+        const cleaned = sanitizeShiftSession(data.session);
+        saveStoredActiveSession(cleaned);
+        return { ...data, session: cleaned };
       }
       return data;
     }
@@ -32,14 +34,15 @@ export async function fetchCloudSession(date: string, shift: ShiftName): Promise
 }
 
 export async function saveCloudSession(session: ShiftSession): Promise<boolean> {
+  const cleaned = sanitizeShiftSession(session);
   // Always update local cache immediately
-  saveStoredActiveSession(session);
+  saveStoredActiveSession(cleaned);
 
   try {
     const res = await fetch('/api/qc/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session }),
+      body: JSON.stringify({ session: cleaned }),
     });
     return res.ok;
   } catch (err) {
@@ -129,4 +132,105 @@ export async function fetchCloudMasterTargets(): Promise<any | null> {
   }
   return null;
 }
+
+export async function saveCloudQualitySpecs(specs: any): Promise<boolean> {
+  try {
+    const res = await fetch('/api/qc/quality-specs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ specs }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save quality specs to cloud:', err);
+    return false;
+  }
+}
+
+export async function fetchCloudQualitySpecs(): Promise<any | null> {
+  try {
+    const res = await fetch('/api/qc/quality-specs');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.found && data.specs) {
+        return data.specs;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch quality specs from cloud:', err);
+  }
+  return null;
+}
+
+export async function saveCloudCgaSettings(settings: any): Promise<boolean> {
+  try {
+    const res = await fetch('/api/qc/cga-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save CGA settings to cloud:', err);
+    return false;
+  }
+}
+
+export async function fetchCloudCgaSettings(): Promise<any | null> {
+  try {
+    const res = await fetch('/api/qc/cga-settings');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.found && data.settings) {
+        return data.settings;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch CGA settings from cloud:', err);
+  }
+  return null;
+}
+
+export async function saveCloudProductList(products: string[]): Promise<boolean> {
+  try {
+    const res = await fetch('/api/qc/product-list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ products }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Failed to save product list to cloud:', err);
+    return false;
+  }
+}
+
+export async function fetchCloudProductList(): Promise<string[] | null> {
+  try {
+    const res = await fetch('/api/qc/product-list');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.found && data.products) {
+        return data.products;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch product list from cloud:', err);
+  }
+  return null;
+}
+
+export async function checkSupabaseStatus(): Promise<{ connected: boolean; url: string; message: string }> {
+  try {
+    const res = await fetch('/api/qc/supabase-status');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Failed to check Supabase status:', err);
+  }
+  return { connected: false, url: '', message: 'Service unreachable' };
+}
+
+
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MasterTargetDryMap, MillType, ProductType, UserAccount, ProductQualitySpec, CgaMasterSetting } from '../../types/qc';
 import { 
   saveStoredMasterTargets, 
@@ -7,13 +7,22 @@ import {
   saveStoredUsers, 
   resetUserPin, 
   getStoredProductList, 
+  saveStoredProductList,
   addNewProductType,
   getStoredQualitySpecs,
   saveStoredQualitySpecs,
   getStoredCgaSettings,
   saveStoredCgaSettings
 } from '../../services/qcStorage';
-import { saveCloudMasterTargets } from '../../services/qcApi';
+import { 
+  saveCloudMasterTargets, 
+  saveCloudQualitySpecs, 
+  saveCloudCgaSettings, 
+  saveCloudProductList,
+  fetchCloudQualitySpecs,
+  fetchCloudCgaSettings,
+  fetchCloudProductList
+} from '../../services/qcApi';
 import { ShieldCheck, Save, RotateCcw, Check, Plus, Trash2, Key, Beaker, Sliders, Users, Layers, Download, X, Edit3, AlertTriangle } from 'lucide-react';
 
 interface MasterDataPageProps {
@@ -28,7 +37,9 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
   onResetFactoryData,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'targets' | 'quality' | 'cga' | 'users'>('targets');
-  const [activeMill, setActiveMill] = useState<MillType>('Vertical Roller Mill (VRM)');
+  const [activeMill, setActiveMill] = useState<MillType>('Tube Mill (TM)');
+  const [activeQualityMill, setActiveQualityMill] = useState<'TM' | 'VRM'>('TM');
+  const [activeCgaMill, setActiveCgaMill] = useState<'TM' | 'VRM'>('TM');
   
   // Targets state
   const [targets, setTargets] = useState<MasterTargetDryMap>(masterTargets);
@@ -48,7 +59,32 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
   const [usersList, setUsersList] = useState<UserAccount[]>(() => getStoredUsers());
   const [userActionMessage, setUserActionMessage] = useState<string | null>(null);
 
-  // Modal: Add New Product
+  useEffect(() => {
+    setTargets(masterTargets);
+  }, [masterTargets]);
+
+  useEffect(() => {
+    fetchCloudQualitySpecs().then((specs) => {
+      if (specs) {
+        setQualitySpecs(specs);
+        saveStoredQualitySpecs(specs);
+      }
+    });
+    fetchCloudCgaSettings().then((settings) => {
+      if (settings) {
+        setCgaSettings(settings);
+        saveStoredCgaSettings(settings);
+      }
+    });
+    fetchCloudProductList().then((products) => {
+      if (products) {
+        setProductList(products);
+        saveStoredProductList(products);
+      }
+    });
+  }, []);
+
+  // Modal: Add New Product (Target Dry)
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [newProdName, setNewProdName] = useState('');
   const [newProdClk, setNewProdClk] = useState(72.0);
@@ -56,6 +92,24 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
   const [newProdLst, setNewProdLst] = useState(14.0);
   const [newProdTrass, setNewProdTrass] = useState(5.0);
   const [newProdFa, setNewProdFa] = useState(5.0);
+
+  // Modal: Add New Product (Target Quality Spec)
+  const [showAddQualityProductModal, setShowAddQualityProductModal] = useState(false);
+  const [newQProdName, setNewQProdName] = useState('');
+  const [newQMill, setNewQMill] = useState<'TM' | 'VRM' | 'BOTH'>('BOTH');
+  const [newQBlaineMin, setNewQBlaineMin] = useState<number>(3800);
+  const [newQBlaineStd, setNewQBlaineStd] = useState<number>(4000);
+  const [newQBlaineMax, setNewQBlaineMax] = useState<number>(4200);
+  const [newQR45Min, setNewQR45Min] = useState<number>(8.0);
+  const [newQR45Std, setNewQR45Std] = useState<number>(11.0);
+  const [newQR45Max, setNewQR45Max] = useState<number>(14.0);
+  const [newQH2oStd, setNewQH2oStd] = useState<number>(0.15);
+  const [newQH2oMax, setNewQH2oMax] = useState<number>(0.30);
+  const [newQSo3Min, setNewQSo3Min] = useState<number>(1.90);
+  const [newQSo3Std, setNewQSo3Std] = useState<number>(2.10);
+  const [newQSo3Max, setNewQSo3Max] = useState<number>(2.30);
+  const [newQFCaoStd, setNewQFCaoStd] = useState<number>(1.00);
+  const [newQFCaoMax, setNewQFCaoMax] = useState<number>(1.50);
 
   // Modal: Add New CGA Brand
   const [showAddCgaModal, setShowAddCgaModal] = useState(false);
@@ -119,7 +173,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       }
     }
 
-    // Poin 5: Tampilkan pop-up dialog konfirmasi sebelum menyimpan
+    // Tampilkan pop-up dialog konfirmasi sebelum menyimpan
     setShowConfirmSaveTargetsModal(true);
   };
 
@@ -136,7 +190,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     }, 4500);
   };
 
-  // Open Edit Modal for Target Dry (Poin 3)
+  // Open Edit Modal for Target Dry
   const handleOpenEditDry = (prod: string) => {
     const p = targets[activeMill]?.[prod] || { clinker: 72, gypsum: 4, limestone: 14, trass: 5, flyAsh: 5 };
     setEditingDryProduct({
@@ -170,6 +224,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
 
     setTargets(updatedTargets);
     saveStoredMasterTargets(updatedTargets);
+    saveCloudMasterTargets(updatedTargets);
     onUpdateMasterTargets(updatedTargets);
     setEditingDryProduct(null);
     setSaveSuccess(true);
@@ -180,31 +235,61 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     }, 4500);
   };
 
-  const handleConfirmDeleteDry = () => {
+  // Permanently delete product from master targets and product list
+  const handleConfirmDeleteDry = async () => {
     if (!deletingDryProduct) return;
-    const { product, mill } = deletingDryProduct;
-    const updatedMillMap = { ...targets[mill] };
-    delete updatedMillMap[product];
+    const { product } = deletingDryProduct;
+
+    // Remove from both mills
+    const newTmMap = { ...targets['Tube Mill (TM)'] };
+    delete newTmMap[product];
+    const newVrmMap = { ...targets['Vertical Roller Mill (VRM)'] };
+    delete newVrmMap[product];
 
     const updatedTargets: MasterTargetDryMap = {
-      ...targets,
-      [mill]: updatedMillMap,
+      'Tube Mill (TM)': newTmMap,
+      'Vertical Roller Mill (VRM)': newVrmMap,
     };
 
+    // Remove from product list
+    const newProductList = productList.filter(p => p !== product);
+    setProductList(newProductList);
+    saveStoredProductList(newProductList);
+    await saveCloudProductList(newProductList);
+
+    // Save master targets
     setTargets(updatedTargets);
     saveStoredMasterTargets(updatedTargets);
+    await saveCloudMasterTargets(updatedTargets);
     onUpdateMasterTargets(updatedTargets);
+
+    // Also remove from quality specs
+    const updatedQuality = qualitySpecs.filter(s => s.productType !== product);
+    setQualitySpecs(updatedQuality);
+    saveStoredQualitySpecs(updatedQuality);
+    await saveCloudQualitySpecs(updatedQuality);
+
+    // Also remove from cga settings
+    const updatedCga = cgaSettings.filter(c => c.productType !== product);
+    setCgaSettings(updatedCga);
+    saveStoredCgaSettings(updatedCga);
+    await saveCloudCgaSettings(updatedCga);
+
     setDeletingDryProduct(null);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setTargetDrySuccessMessage(`✅ Produk [${product}] berhasil dihapus permanen dari Master Data!`);
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 4000);
   };
 
-  // Open Edit Modal for Target Quality (Poin 3)
+  // Open Edit Modal for Target Quality
   const handleOpenEditQuality = (spec: ProductQualitySpec) => {
     setEditingQualitySpec(JSON.parse(JSON.stringify(spec)));
   };
 
-  const handleSaveEditQualityModal = (e: React.FormEvent) => {
+  const handleSaveEditQualityModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingQualitySpec) return;
 
@@ -217,23 +302,105 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
 
     setQualitySpecs(updated);
     saveStoredQualitySpecs(updated);
+    await saveCloudQualitySpecs(updated);
     setEditingQualitySpec(null);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setTargetDrySuccessMessage(`✅ Target Quality [${editingQualitySpec.productType}] berhasil diperbarui!`);
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 3500);
   };
 
-  const handleConfirmDeleteQuality = () => {
+  const handleConfirmDeleteQuality = async () => {
     if (!deletingQualitySpec) return;
-    const updated = qualitySpecs.filter(s => s.productType !== deletingQualitySpec.productType);
+    const deletedName = deletingQualitySpec.productType;
+    const updated = qualitySpecs.filter(s => s.productType !== deletedName);
     setQualitySpecs(updated);
     saveStoredQualitySpecs(updated);
+    await saveCloudQualitySpecs(updated);
     setDeletingQualitySpec(null);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setTargetDrySuccessMessage(`✅ Target Quality [${deletedName}] berhasil dihapus!`);
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 3500);
+  };
+
+  // Create new product for Target Quality
+  const handleCreateQualityProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newQProdName.trim().toUpperCase();
+    if (!name) return;
+
+    const newSpec: ProductQualitySpec = {
+      productType: name,
+      blaine: { min: newQBlaineMin, std: newQBlaineStd, max: newQBlaineMax },
+      residuR45: { min: newQR45Min, std: newQR45Std, max: newQR45Max },
+      moistureH2O: { min: 0.05, std: newQH2oStd, max: newQH2oMax },
+      so3: { min: newQSo3Min, std: newQSo3Std, max: newQSo3Max },
+      freelimeFCaO: { min: 0.50, std: newQFCaoStd, max: newQFCaoMax },
+    };
+
+    const updatedQuality = [...qualitySpecs.filter(s => s.productType !== name), newSpec];
+    setQualitySpecs(updatedQuality);
+    saveStoredQualitySpecs(updatedQuality);
+    await saveCloudQualitySpecs(updatedQuality);
+
+    // Also register in productList if not present
+    const currentList = getStoredProductList();
+    if (!currentList.includes(name)) {
+      const updatedList = [...currentList, name];
+      setProductList(updatedList);
+      saveStoredProductList(updatedList);
+      await saveCloudProductList(updatedList);
+    }
+
+    // Ensure Master Target Dry entry exists for TM and VRM
+    const updatedTargets = { ...targets };
+    const defaultFormula = { clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0 };
+    if (!updatedTargets['Tube Mill (TM)'][name]) {
+      updatedTargets['Tube Mill (TM)'][name] = { ...defaultFormula };
+    }
+    if (!updatedTargets['Vertical Roller Mill (VRM)'][name]) {
+      updatedTargets['Vertical Roller Mill (VRM)'][name] = { ...defaultFormula };
+    }
+    setTargets(updatedTargets);
+    saveStoredMasterTargets(updatedTargets);
+    await saveCloudMasterTargets(updatedTargets);
+    onUpdateMasterTargets(updatedTargets);
+
+    // Ensure CGA entry exists
+    const currentCga = getStoredCgaSettings();
+    if (!currentCga.some(c => c.productType === name)) {
+      const newCga = [
+        ...currentCga,
+        {
+          id: `cga_${Date.now()}`,
+          productType: name,
+          cgaBrand: 'SIKA',
+          dosagePpm: 400,
+          notes: `Setting standar untuk ${newQMill === 'BOTH' ? 'TM & VRM' : newQMill}`,
+        }
+      ];
+      setCgaSettings(newCga);
+      saveStoredCgaSettings(newCga);
+      await saveCloudCgaSettings(newCga);
+    }
+
+    setShowAddQualityProductModal(false);
+    setNewQProdName('');
+    setSaveSuccess(true);
+    setTargetDrySuccessMessage(`✅ Produk [${name}] beserta Target Quality berhasil ditambahkan ke Master Data!`);
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 4500);
   };
 
   // Create new product
-  const handleCreateProduct = (e: React.FormEvent) => {
+  const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = newProdName.trim().toUpperCase();
     if (!name) return;
@@ -284,10 +451,15 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     setQualitySpecs(updated);
   };
 
-  const handleSaveQualitySpecs = () => {
+  const handleSaveQualitySpecs = async () => {
     saveStoredQualitySpecs(qualitySpecs);
+    await saveCloudQualitySpecs(qualitySpecs);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setTargetDrySuccessMessage('✅ Master Target Quality berhasil disimpan ke Cloud DB!');
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 3500);
   };
 
   // CGA settings change
@@ -301,10 +473,15 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
     setCgaSettings(updated);
   };
 
-  const handleSaveCga = () => {
+  const handleSaveCga = async () => {
     saveStoredCgaSettings(cgaSettings);
+    await saveCloudCgaSettings(cgaSettings);
     setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    setTargetDrySuccessMessage('✅ Master CGA berhasil disimpan ke Cloud DB!');
+    setTimeout(() => {
+      setTargetDrySuccessMessage(null);
+      setSaveSuccess(false);
+    }, 3500);
   };
 
   const handleAddCgaBrand = (e: React.FormEvent) => {
@@ -424,29 +601,29 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
         <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm space-y-4">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
-            {/* Mill Switcher */}
+            {/* Pemisahan Sub-tabel Mandiri: Master Target Dry TM vs VRM (Poin II.1) */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setActiveMill('Vertical Roller Mill (VRM)')}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                  activeMill === 'Vertical Roller Mill (VRM)'
-                    ? 'bg-[#0284C7] text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
-                }`}
-              >
-                VRM (Mill 2)
-              </button>
-              <button
-                type="button"
                 onClick={() => setActiveMill('Tube Mill (TM)')}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                   activeMill === 'Tube Mill (TM)'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
                 }`}
               >
-                TM (Mill 1)
+                <span>Master Target Dry TM</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMill('Vertical Roller Mill (VRM)')}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeMill === 'Vertical Roller Mill (VRM)'
+                    ? 'bg-[#0284C7] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                }`}
+              >
+                <span>Master Target Dry VRM</span>
               </button>
             </div>
 
@@ -472,7 +649,7 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
             </div>
           </div>
 
-          {/* Target Dry Table */}
+          {/* Target Dry Table - Terisolasi per mesin TM vs VRM */}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs font-mono">
               <thead>
@@ -488,8 +665,8 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
-                {productList.map((prod) => {
-                  const p = targets[activeMill]?.[prod] || { clinker: 72, gypsum: 4, limestone: 14, trass: 5, flyAsh: 5 };
+                {Object.keys(targets[activeMill] || {}).map((prod) => {
+                  const p = targets[activeMill][prod] || { clinker: 72, gypsum: 4, limestone: 14, trass: 5, flyAsh: 5 };
                   const total = p.clinker + p.gypsum + p.limestone + p.trass + p.flyAsh;
                   const isValid = Math.abs(total - 100.0) < 0.1;
 
@@ -550,24 +727,55 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       {/* ============================================================== */}
       {activeSubTab === 'quality' && (
         <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b-2 border-slate-200 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                Standar Spesifikasi Kualitas Produk Semen
-              </h3>
-              <p className="text-xs text-slate-500 font-mono">
-                Batas kendali Min, Max, dan Target Standard untuk Blaine, R45, H2O, SO3, dan F-CaO.
-              </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
+            {/* Pemisahan Sub-tabel Mandiri: Target Quality TM vs VRM (Poin II.2) */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveQualityMill('TM')}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeQualityMill === 'TM'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                }`}
+              >
+                <span>Target Quality TM</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveQualityMill('VRM')}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeQualityMill === 'VRM'
+                    ? 'bg-[#0284C7] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                }`}
+              >
+                <span>Target Quality VRM</span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleSaveQualitySpecs}
-              className="px-4 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm flex items-center gap-1.5"
-            >
-              <Save className="w-4 h-4" />
-              <span>Simpan Target Quality</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewQMill(activeQualityMill);
+                  setShowAddQualityProductModal(true);
+                }}
+                className="px-3.5 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Tambah Target Quality ({activeQualityMill})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveQualitySpecs}
+                className="px-4 py-2 text-xs font-bold text-white bg-[#16A34A] hover:bg-emerald-700 rounded-lg shadow-sm flex items-center gap-1.5 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                <span>Simpan Target Quality</span>
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -600,8 +808,10 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
-                {qualitySpecs.map((spec) => (
-                  <tr key={spec.productType} className="hover:bg-slate-50">
+                {qualitySpecs
+                  .filter(spec => !spec.millType || spec.millType === 'BOTH' || spec.millType === activeQualityMill)
+                  .map((spec) => (
+                  <tr key={`${spec.millType || 'ALL'}_${spec.productType}`} className="hover:bg-slate-50">
                     <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900 bg-slate-50">
                       {spec.productType}
                     </td>
@@ -768,13 +978,30 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
       {activeSubTab === 'cga' && (
         <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-slate-200 pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                Pengaturan Master CGA (Cement Grinding Aid)
-              </h3>
-              <p className="text-xs text-slate-500 font-mono">
-                Merek default: SIKA, CONCH, GCP · Dosis PPM standar tiap jenis produk semen.
-              </p>
+            {/* Pemisahan Sub-tabel Mandiri: Master CGA TM vs VRM (Poin II.3) */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveCgaMill('TM')}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeCgaMill === 'TM'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                }`}
+              >
+                <span>Master CGA TM</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveCgaMill('VRM')}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                  activeCgaMill === 'VRM'
+                    ? 'bg-[#0284C7] text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
+                }`}
+              >
+                <span>Master CGA VRM</span>
+              </button>
             </div>
 
             <div className="flex items-center gap-2">
@@ -809,7 +1036,9 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
-                {cgaSettings.map((cga) => (
+                {cgaSettings
+                  .filter(cga => !cga.millType || cga.millType === activeCgaMill)
+                  .map((cga) => (
                   <tr key={cga.id} className="hover:bg-slate-50">
                     <td className="py-2 px-3 border-r border-slate-300 font-sans font-bold text-slate-900 bg-slate-50">
                       {cga.productType}
@@ -1556,6 +1785,287 @@ export const MasterDataPage: React.FC<MasterDataPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal: Tambah Produk Baru (Target Quality) */}
+      {showAddQualityProductModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border-2 border-slate-500 overflow-hidden">
+            <div className="px-5 py-4 bg-slate-800 text-white border-b-2 border-slate-600 flex items-center justify-between">
+              <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <Beaker className="w-4 h-4 text-[#0284C7]" />
+                <span>+ Tambah Produk Baru & Target Mutu (Quality)</span>
+              </h3>
+              <button 
+                onClick={() => setShowAddQualityProductModal(false)} 
+                className="text-slate-300 hover:text-white p-1 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateQualityProduct} className="p-5 space-y-4 text-xs font-sans max-h-[85vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-300 rounded-xl">
+                <div>
+                  <label className="block text-slate-800 font-bold mb-1">
+                    Tipe Mesin (Mill) <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={newQMill}
+                    onChange={(e) => {
+                      const val = e.target.value as 'TM' | 'VRM' | 'BOTH';
+                      setNewQMill(val);
+                      setNewQProdName('');
+                    }}
+                    className="w-full p-2 bg-white border border-slate-400 rounded-lg font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                  >
+                    <option value="TM">Tube Mill (TM)</option>
+                    <option value="VRM">Vertical Roller Mill (VRM)</option>
+                    <option value="BOTH">Keduanya (TM & VRM)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-800 font-bold mb-1">
+                    Pilih Produk Terdaftar di Target Dry ({newQMill}) <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={newQProdName}
+                    onChange={(e) => setNewQProdName(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-400 rounded-lg font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                  >
+                    <option value="">-- Pilih Produk Terdaftar di {newQMill} --</option>
+                    {(() => {
+                      const tmProds = Object.keys(targets['Tube Mill (TM)'] || {});
+                      const vrmProds = Object.keys(targets['Vertical Roller Mill (VRM)'] || {});
+                      const availableProds = newQMill === 'TM' 
+                        ? tmProds 
+                        : newQMill === 'VRM' 
+                        ? vrmProds 
+                        : Array.from(new Set([...tmProds, ...vrmProds]));
+                      return availableProds.map(prod => (
+                        <option key={prod} value={prod}>{prod}</option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+              </div>
+
+              {/* Parameter 1: Blaine */}
+              <div className="p-3 bg-slate-50 border-2 border-slate-300 rounded-xl space-y-2">
+                <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                  <span>BLAINE (cm²/gr)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Kehalusan Partikel</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-600 font-bold mb-0.5">MIN</label>
+                    <input
+                      type="number"
+                      step="10"
+                      required
+                      value={newQBlaineMin}
+                      onChange={(e) => setNewQBlaineMin(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-400 rounded-lg font-mono font-bold text-right text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-amber-700 font-bold mb-0.5">STD (Target)</label>
+                    <input
+                      type="number"
+                      step="10"
+                      required
+                      value={newQBlaineStd}
+                      onChange={(e) => setNewQBlaineStd(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-amber-50 border-2 border-amber-400 rounded-lg font-mono font-bold text-right text-amber-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-600 font-bold mb-0.5">MAX</label>
+                    <input
+                      type="number"
+                      step="10"
+                      required
+                      value={newQBlaineMax}
+                      onChange={(e) => setNewQBlaineMax(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-400 rounded-lg font-mono font-bold text-right text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Parameter 2: Residu 45um */}
+              <div className="p-3 bg-slate-50 border-2 border-slate-300 rounded-xl space-y-2">
+                <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                  <span>RESIDU 45um (%)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Saringan Ayakan R45</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-600 font-bold mb-0.5">MIN</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      value={newQR45Min}
+                      onChange={(e) => setNewQR45Min(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-400 rounded-lg font-mono font-bold text-right text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-amber-700 font-bold mb-0.5">STD (Target)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      value={newQR45Std}
+                      onChange={(e) => setNewQR45Std(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-amber-50 border-2 border-amber-400 rounded-lg font-mono font-bold text-right text-amber-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-600 font-bold mb-0.5">MAX</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      value={newQR45Max}
+                      onChange={(e) => setNewQR45Max(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-400 rounded-lg font-mono font-bold text-right text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Parameter 3: H2O & F-CaO */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* H2O */}
+                <div className="p-3 bg-slate-50 border-2 border-slate-300 rounded-xl space-y-2">
+                  <div className="font-bold text-slate-900 text-xs">
+                    <span>H2O MOISTURE (%)</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-blue-700 font-bold mb-0.5">STD</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={newQH2oStd}
+                        onChange={(e) => setNewQH2oStd(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 bg-blue-50 border-2 border-blue-400 rounded-lg font-mono font-bold text-right text-blue-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 font-bold mb-0.5">MAX</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={newQH2oMax}
+                        onChange={(e) => setNewQH2oMax(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 bg-white border border-slate-400 rounded-lg font-mono font-bold text-right text-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* F-CaO */}
+                <div className="p-3 bg-slate-50 border-2 border-slate-300 rounded-xl space-y-2">
+                  <div className="font-bold text-slate-900 text-xs">
+                    <span>F-CaO FREELIME (%)</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-amber-700 font-bold mb-0.5">STD</label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        required
+                        value={newQFCaoStd}
+                        onChange={(e) => setNewQFCaoStd(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 bg-amber-50 border-2 border-amber-400 rounded-lg font-mono font-bold text-right text-amber-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 font-bold mb-0.5">MAX</label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        required
+                        value={newQFCaoMax}
+                        onChange={(e) => setNewQFCaoMax(parseFloat(e.target.value) || 0)}
+                        className="w-full p-2 bg-white border border-slate-400 rounded-lg font-mono font-bold text-right text-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Parameter 4: SO3 */}
+              <div className="p-3 bg-slate-50 border-2 border-slate-300 rounded-xl space-y-2">
+                <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
+                  <span>SO3 (%)</span>
+                  <span className="text-[10px] text-slate-500 font-mono">Sulfur Trioksida</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-slate-600 font-bold mb-0.5">MIN</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      required
+                      value={newQSo3Min}
+                      onChange={(e) => setNewQSo3Min(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-400 rounded-lg font-mono font-bold text-right text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-sky-700 font-bold mb-0.5">STD (Target)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      required
+                      value={newQSo3Std}
+                      onChange={(e) => setNewQSo3Std(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-sky-50 border-2 border-sky-400 rounded-lg font-mono font-bold text-right text-sky-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-600 font-bold mb-0.5">MAX</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      required
+                      value={newQSo3Max}
+                      onChange={(e) => setNewQSo3Max(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 bg-white border border-slate-400 rounded-lg font-mono font-bold text-right text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t-2 border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddQualityProductModal(false)}
+                  className="px-4 py-2 text-white bg-[#334155] hover:bg-slate-800 rounded-lg font-bold transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Simpan Produk Baru ke Master Data</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showAddCgaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border-2 border-slate-500 overflow-hidden">

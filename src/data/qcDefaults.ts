@@ -12,7 +12,7 @@ import {
   CgaMasterSetting,
   CpProductSample
 } from '../types/qc';
-import { SHIFT_DEFINITIONS, calculateWetBase } from '../utils/qcCalculations';
+import { SHIFT_DEFINITIONS } from '../utils/qcCalculations';
 
 export const DEFAULT_USERS: UserAccount[] = [
   { id: 'usr_si', role: 'supervisor', name: 'SI (ADMIN)', pin: '123456', updatedAt: '2026-10-19T00:00:00.000Z' },
@@ -25,139 +25,115 @@ export const DEFAULT_USERS: UserAccount[] = [
 export const DEFAULT_PRODUCT_LIST: string[] = [
   'PCC Plus FA',
   'PCC NON FA',
-  'PCC WS',
   'SPK',
   'OPC G',
+  'PCC WS',
   'OPC P',
 ];
 
 export const DEFAULT_MASTER_TARGETS: MasterTargetDryMap = {
   'Tube Mill (TM)': {
-    'PCC NON FA': { clinker: 74.0, gypsum: 4.0, limestone: 17.0, trass: 5.0, flyAsh: 0.0 },
-    'PCC Plus FA': { clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0 },
-    'PCC WS': { clinker: 70.0, gypsum: 4.0, limestone: 16.0, trass: 10.0, flyAsh: 0.0 },
-    'SPK': { clinker: 82.0, gypsum: 4.0, limestone: 9.0, trass: 5.0, flyAsh: 0.0 },
-    'OPC G': { clinker: 91.0, gypsum: 4.0, limestone: 5.0, trass: 0.0, flyAsh: 0.0 },
-    'OPC P': { clinker: 92.0, gypsum: 4.0, limestone: 4.0, trass: 0.0, flyAsh: 0.0 },
+    'PCC Plus FA': { clinker: 57.8, gypsum: 3.4, limestone: 18.8, trass: 15.0, flyAsh: 5.0 },
+    'PCC NON FA': { clinker: 57.8, gypsum: 3.4, limestone: 18.8, trass: 20.0, flyAsh: 0.0 },
+    'SPK': { clinker: 55.0, gypsum: 3.4, limestone: 15.8, trass: 15.8, flyAsh: 10.0 },
+    'OPC G': { clinker: 88.0, gypsum: 3.8, limestone: 8.2, trass: 0.0, flyAsh: 0.0 },
+    'PCC WS': { clinker: 58.0, gypsum: 3.4, limestone: 28.6, trass: 10.0, flyAsh: 0.0 },
+    'OPC P': { clinker: 90.0, gypsum: 3.8, limestone: 6.2, trass: 0.0, flyAsh: 0.0 },
   },
   'Vertical Roller Mill (VRM)': {
-    'PCC Plus FA': { clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0 },
-    'PCC NON FA': { clinker: 74.0, gypsum: 4.0, limestone: 17.0, trass: 5.0, flyAsh: 0.0 },
-    'PCC WS': { clinker: 70.0, gypsum: 4.0, limestone: 16.0, trass: 10.0, flyAsh: 0.0 },
-    'SPK': { clinker: 82.0, gypsum: 4.0, limestone: 9.0, trass: 5.0, flyAsh: 0.0 },
-    'OPC G': { clinker: 91.0, gypsum: 4.0, limestone: 5.0, trass: 0.0, flyAsh: 0.0 },
-    'OPC P': { clinker: 92.0, gypsum: 4.0, limestone: 4.0, trass: 0.0, flyAsh: 0.0 },
+    'PCC Plus FA': { clinker: 57.8, gypsum: 2.8, limestone: 8.0, trass: 26.4, flyAsh: 5.0 },
+    'PCC NON FA': { clinker: 57.8, gypsum: 2.8, limestone: 8.0, trass: 31.4, flyAsh: 0.0 },
+    'SPK': { clinker: 55.0, gypsum: 3.4, limestone: 15.8, trass: 15.8, flyAsh: 10.0 },
+    'OPC G': { clinker: 88.0, gypsum: 3.8, limestone: 8.2, trass: 0.0, flyAsh: 0.0 },
+    'PCC WS': { clinker: 58.0, gypsum: 3.4, limestone: 28.6, trass: 10.0, flyAsh: 0.0 },
+    'OPC P': { clinker: 90.0, gypsum: 3.8, limestone: 6.2, trass: 0.0, flyAsh: 0.0 },
   },
 };
 
 export const DEFAULT_QUALITY_SPECS: ProductQualitySpec[] = [
-  {
-    productType: 'PCC Plus FA',
-    blaine: { min: 3800, max: 4200, std: 3900 },
-    residuR45: { min: 8.0, max: 14.0, std: 11.0 },
-    moistureH2O: { min: 0.05, max: 0.30, std: 0.15 },
-    so3: { min: 1.90, max: 2.30, std: 2.10 },
-    freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
-  },
-  {
-    productType: 'PCC NON FA',
-    blaine: { min: 3700, max: 4100, std: 3850 },
-    residuR45: { min: 9.0, max: 15.0, std: 12.0 },
-    moistureH2O: { min: 0.05, max: 0.30, std: 0.16 },
-    so3: { min: 1.80, max: 2.20, std: 2.05 },
-    freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
-  },
-  {
-    productType: 'PCC WS',
-    blaine: { min: 3900, max: 4300, std: 4000 },
-    residuR45: { min: 7.0, max: 13.0, std: 10.5 },
-    moistureH2O: { min: 0.05, max: 0.30, std: 0.15 },
-    so3: { min: 1.90, max: 2.30, std: 2.10 },
-    freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
-  },
-  {
-    productType: 'SPK',
-    blaine: { min: 3300, max: 3700, std: 3500 },
-    residuR45: { min: 10.0, max: 16.0, std: 13.0 },
-    moistureH2O: { min: 0.05, max: 0.25, std: 0.12 },
-    so3: { min: 1.80, max: 2.20, std: 2.00 },
-    freelimeFCaO: { min: 0.50, max: 1.50, std: 1.10 },
-  },
-  {
-    productType: 'OPC G',
-    blaine: { min: 3400, max: 3800, std: 3600 },
-    residuR45: { min: 8.0, max: 14.0, std: 11.0 },
-    moistureH2O: { min: 0.02, max: 0.20, std: 0.10 },
-    so3: { min: 2.00, max: 2.50, std: 2.25 },
-    freelimeFCaO: { min: 0.50, max: 1.30, std: 0.90 },
-  },
-  {
-    productType: 'OPC P',
-    blaine: { min: 3600, max: 4000, std: 3800 },
-    residuR45: { min: 6.0, max: 12.0, std: 9.0 },
-    moistureH2O: { min: 0.02, max: 0.20, std: 0.10 },
-    so3: { min: 2.10, max: 2.60, std: 2.35 },
-    freelimeFCaO: { min: 0.50, max: 1.30, std: 0.90 },
-  },
+  // TM Specs
+  { id: 'qs_tm_1', millType: 'TM', productType: 'PCC Plus FA', blaine: { min: 4700, max: 4900, std: 4800 }, residuR45: { min: 0, max: 5.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.30, std: 0.15 }, so3: { min: 1.60, max: 1.80, std: 1.70 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 } },
+  { id: 'qs_tm_2', millType: 'TM', productType: 'PCC NON FA', blaine: { min: 4700, max: 4900, std: 4800 }, residuR45: { min: 0, max: 5.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.30, std: 0.16 }, so3: { min: 1.60, max: 1.80, std: 1.70 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 } },
+  { id: 'qs_tm_3', millType: 'TM', productType: 'SPK', blaine: { min: 5400, max: 5600, std: 5500 }, residuR45: { min: 0, max: 5.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.25, std: 0.12 }, so3: { min: 1.60, max: 1.80, std: 1.70 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.10 } },
+  { id: 'qs_tm_4', millType: 'TM', productType: 'OPC G', blaine: { min: 3700, max: 3900, std: 3800 }, residuR45: { min: 0, max: 3.5, std: 0 }, moistureH2O: { min: 0.02, max: 0.20, std: 0.10 }, so3: { min: 2.00, max: 2.20, std: 2.10 }, freelimeFCaO: { min: 0.50, max: 1.30, std: 0.90 } },
+  { id: 'qs_tm_5', millType: 'TM', productType: 'PCC WS', blaine: { min: 4700, max: 4900, std: 4800 }, residuR45: { min: 0, max: 5.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.30, std: 0.15 }, so3: { min: 1.60, max: 1.80, std: 1.70 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 } },
+  { id: 'qs_tm_6', millType: 'TM', productType: 'OPC P', blaine: { min: 3700, max: 3900, std: 3800 }, residuR45: { min: 0, max: 3.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.30, std: 0.15 }, so3: { min: 2.00, max: 2.20, std: 2.10 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 } },
+
+  // VRM Specs
+  { id: 'qs_vrm_1', millType: 'VRM', productType: 'PCC Plus FA', blaine: { min: 4700, max: 4900, std: 4800 }, residuR45: { min: 0, max: 5.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.30, std: 0.15 }, so3: { min: 1.60, max: 1.80, std: 1.70 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 } },
+  { id: 'qs_vrm_2', millType: 'VRM', productType: 'PCC NON FA', blaine: { min: 4700, max: 4900, std: 4800 }, residuR45: { min: 0, max: 5.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.30, std: 0.16 }, so3: { min: 1.60, max: 1.80, std: 1.70 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 } },
+  { id: 'qs_vrm_3', millType: 'VRM', productType: 'SPK', blaine: { min: 5400, max: 5600, std: 5500 }, residuR45: { min: 0, max: 5.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.25, std: 0.12 }, so3: { min: 1.60, max: 1.80, std: 1.70 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.10 } },
+  { id: 'qs_vrm_4', millType: 'VRM', productType: 'OPC G', blaine: { min: 3700, max: 3900, std: 3800 }, residuR45: { min: 0, max: 3.5, std: 0 }, moistureH2O: { min: 0.02, max: 0.20, std: 0.10 }, so3: { min: 2.00, max: 2.20, std: 2.10 }, freelimeFCaO: { min: 0.50, max: 1.30, std: 0.90 } },
+  { id: 'qs_vrm_5', millType: 'VRM', productType: 'PCC WS', blaine: { min: 4700, max: 4900, std: 4800 }, residuR45: { min: 0, max: 5.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.30, std: 0.15 }, so3: { min: 1.60, max: 1.80, std: 1.70 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 } },
+  { id: 'qs_vrm_6', millType: 'VRM', productType: 'OPC P', blaine: { min: 3700, max: 3900, std: 3800 }, residuR45: { min: 0, max: 3.0, std: 0 }, moistureH2O: { min: 0.05, max: 0.30, std: 0.15 }, so3: { min: 2.00, max: 2.20, std: 2.10 }, freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 } },
 ];
 
 export const DEFAULT_CGA_SETTINGS: CgaMasterSetting[] = [
-  { id: 'cga_1', productType: 'PCC Plus FA', cgaBrand: 'SIKA', dosagePpm: 400, notes: 'Optimasi kehalusan & strength' },
-  { id: 'cga_2', productType: 'PCC NON FA', cgaBrand: 'CONCH', dosagePpm: 350, notes: 'Pengendali pack set' },
-  { id: 'cga_3', productType: 'PCC WS', cgaBrand: 'GCP', dosagePpm: 450, notes: 'Peningkat retensi air' },
-  { id: 'cga_4', productType: 'SPK', cgaBrand: 'SIKA', dosagePpm: 300, notes: 'Kuat tekan awal' },
-  { id: 'cga_5', productType: 'OPC G', cgaBrand: 'CONCH', dosagePpm: 400, notes: 'Workability semen cor' },
-  { id: 'cga_6', productType: 'OPC P', cgaBrand: 'GCP', dosagePpm: 400, notes: 'Kehalusan ekstra' },
+  // TM CGA Settings
+  { id: 'cga_tm_1', millType: 'TM', productType: 'PCC Plus FA', cgaBrand: 'SIKA', dosagePpm: 400, notes: 'Optimasi kehalusan & strength' },
+  { id: 'cga_tm_2', millType: 'TM', productType: 'PCC NON FA', cgaBrand: 'CONCH', dosagePpm: 350, notes: 'Pengendali pack set' },
+  { id: 'cga_tm_3', millType: 'TM', productType: 'PCC WS', cgaBrand: 'GCP', dosagePpm: 450, notes: 'Peningkat retensi air' },
+  { id: 'cga_tm_4', millType: 'TM', productType: 'SPK', cgaBrand: 'SIKA', dosagePpm: 300, notes: 'Kuat tekan awal' },
+  { id: 'cga_tm_5', millType: 'TM', productType: 'OPC G', cgaBrand: 'CONCH', dosagePpm: 400, notes: 'Workability semen cor' },
+  { id: 'cga_tm_6', millType: 'TM', productType: 'OPC P', cgaBrand: 'GCP', dosagePpm: 400, notes: 'Kehalusan ekstra' },
+
+  // VRM CGA Settings
+  { id: 'cga_vrm_1', millType: 'VRM', productType: 'PCC Plus FA', cgaBrand: 'SIKA', dosagePpm: 400, notes: 'Optimasi kehalusan & strength' },
+  { id: 'cga_vrm_2', millType: 'VRM', productType: 'PCC NON FA', cgaBrand: 'CONCH', dosagePpm: 350, notes: 'Pengendali pack set' },
+  { id: 'cga_vrm_3', millType: 'VRM', productType: 'PCC WS', cgaBrand: 'GCP', dosagePpm: 450, notes: 'Peningkat retensi air' },
+  { id: 'cga_vrm_4', millType: 'VRM', productType: 'SPK', cgaBrand: 'SIKA', dosagePpm: 300, notes: 'Kuat tekan awal' },
+  { id: 'cga_vrm_5', millType: 'VRM', productType: 'OPC G', cgaBrand: 'CONCH', dosagePpm: 400, notes: 'Workability semen cor' },
+  { id: 'cga_vrm_6', millType: 'VRM', productType: 'OPC P', cgaBrand: 'GCP', dosagePpm: 400, notes: 'Kehalusan ekstra' },
 ];
 
 export const DEFAULT_UNIFIED_INCOMING: UnifiedIncomingMaterial[] = [
   {
     id: 'inc_trass',
     name: 'Incoming Trass',
-    enabledParams: ['valuePercent', 'statusText'],
-    params: { valuePercent: null, statusText: 'on process' }
+    enabledParams: ['h2o', 'statusText'],
+    params: { h2o: null, statusText: '' }
   },
   {
     id: 'inc_limestone',
     name: 'Incoming Limestone',
-    enabledParams: ['valuePercent', 'statusText'],
-    params: { valuePercent: null, statusText: 'on process' }
+    enabledParams: ['h2o', 'statusText'],
+    params: { h2o: null, statusText: '' }
   },
   {
     id: 'inc_gyp_anh',
     name: 'Incoming Gypsum Anhidrat',
-    enabledParams: ['valuePercent'],
-    params: { valuePercent: 3.82 }
+    enabledParams: ['h2o'],
+    params: { h2o: null }
   },
   {
     id: 'inc_gyp_nat',
     name: 'Incoming Gypsum Natural',
-    enabledParams: ['valuePercent'],
-    params: { valuePercent: 4.15 }
+    enabledParams: ['h2o'],
+    params: { h2o: null }
   },
   {
     id: 'inc_bof_slag',
     name: 'Incoming BOF Slag',
-    enabledParams: ['valuePercent'],
-    params: { valuePercent: 1.18 }
+    enabledParams: ['h2o'],
+    params: { h2o: null }
   },
   {
     id: 'inc_wet_ash',
     name: 'Incoming Wet Ash',
-    enabledParams: ['valuePercent'],
-    params: { valuePercent: 24.3 }
+    enabledParams: ['h2o'],
+    params: { h2o: null }
   },
   {
     id: 'inc_clinker',
     name: 'Incoming Clinker',
-    enabledParams: ['valuePercent'],
-    params: { valuePercent: 0.12 }
+    enabledParams: ['h2o'],
+    params: { h2o: null }
   },
   {
     id: 'inc_batu_bara',
     name: 'Incoming Batu Bara',
-    enabledParams: ['valuePercent'],
-    params: { valuePercent: 18.5 }
+    enabledParams: ['h2o'],
+    params: { h2o: null }
   },
   {
     id: 'inc_bbfs_krt',
@@ -232,92 +208,111 @@ export const DEFAULT_CP_PRODUCTS: [CpProductSample, CpProductSample] = [
 
 /**
  * Creates initial mill data for either TM or VRM
- * If isEmpty is true, rows start clean without prior shift numbers
+ * Shift baru wajib 100% BERSIH tanpa proporsi aktif fiktif/dummy.
  */
 export function createInitialMillData(
   millType: 'Tube Mill (TM)' | 'Vertical Roller Mill (VRM)',
   hours: string[],
-  product: ProductType,
-  siloName: string,
-  isRunning: boolean = true,
-  isEmpty: boolean = true
+  _product: ProductType = '',
+  _siloName: string = '',
+  isRunning: boolean = false,
+  _isEmpty: boolean = true
 ): MillSessionData {
   const isTM = millType === 'Tube Mill (TM)';
   const millCode = isTM ? 'TM' : 'VRM';
   const millNumber = isTM ? 1 : 2;
-  const targetStandard = DEFAULT_MASTER_TARGETS[millType]?.[product] || {
-    clinker: 72.0, gypsum: 4.0, limestone: 14.0, trass: 5.0, flyAsh: 5.0
-  };
 
-  const wetCalc = calculateWetBase({
-    clinker: { dry: targetStandard.clinker, h2o: 0.12 },
-    gypsum: { dry: targetStandard.gypsum, h2o: 4.25 },
-    limestone: { dry: targetStandard.limestone, h2o: 1.85 },
-    trass: { dry: targetStandard.trass, h2o: 4.80 },
-    flyAsh: { dry: targetStandard.flyAsh, h2o: 0.30 },
-  });
-
-  const propId = `prop_${millCode.toLowerCase()}_init`;
-  const initialProp = {
-    id: propId,
-    versionNumber: 1,
-    label: `Proporsi 1 (${hours[0]} - ${hours[hours.length - 1]})`,
-    appliedAtHour: hours[0],
-    endAtHour: hours[hours.length - 1],
-    millType,
-    productType: product,
-    siloName,
-    tphFeeding: 100.0,
-    admixtureName: 'CGA Sika',
-    admixturePpm: 400,
-    materials: {
-      clinker: wetCalc.clinker,
-      gypsum: wetCalc.gypsum,
-      limestone: wetCalc.limestone,
-      trass: wetCalc.trass,
-      flyAsh: wetCalc.flyAsh,
-    },
-    dryTotal: wetCalc.dryTotal,
-    wetTotal: wetCalc.wetTotal,
-    isSessionOverride: false,
-    savedAt: new Date().toISOString(),
-  };
-
-  const propSummary = `${wetCalc.clinker.dry}% Clk | ${wetCalc.gypsum.dry}% Gyp | ${wetCalc.limestone.dry}% Lst | ${wetCalc.trass.dry}% Trass | ${wetCalc.flyAsh.dry}% FA`;
-
-  const hourlyRows = hours.map((hour) => {
-    return {
-      hour,
-      blaine: null,
-      residuR45: null,
-      moistureH2O: null,
-      so3: null,
-      freelimeFCaO: null,
-      tph: null,
-      proporsiVersionId: propId,
-      proporsiDisplay: propSummary,
-      admixtureDisplay: 'CGA Sika 400 PPM',
-      notes: undefined,
-    };
-  });
+  const hourlyRows = hours.map((hour) => ({
+    hour,
+    blaine: null,
+    residuR45: null,
+    moistureH2O: null,
+    so3: null,
+    freelimeFCaO: null,
+    tph: null,
+    proporsiVersionId: undefined,
+    proporsiDisplay: '',
+    admixtureDisplay: '',
+    notes: undefined,
+  }));
 
   return {
     millType,
     millCode,
     millNumber,
     isRunning,
-    productType: product,
-    siloName,
-    tphFeeding: 100.0,
-    admixtureName: 'CGA Sika',
-    admixturePpm: 400,
+    productType: '',
+    siloName: '',
+    tphFeeding: 0,
+    admixtureName: '',
+    admixturePpm: 0,
     hourlyRows,
-    proporsiHistory: [initialProp],
+    proporsiHistory: [],
   };
 }
 
 /**
- * Creates a fresh shift session (Clean slate, zero residuals)
+ * Membersihkan proporsi dummy/fiktif (prop_tm_init / prop_vrm_init) dari sesi yang tersimpan
+ * sehingga proporsi hanya dianggap aktif apabila analis benar-benar menekan Simpan & Aktifkan.
+ */
+export function sanitizeMillSessionData(mill: MillSessionData): MillSessionData {
+  if (!mill) return mill;
+  const validHistory = (mill.proporsiHistory || []).filter(
+    (p) => p && p.id && !p.id.startsWith('prop_tm_init') && !p.id.startsWith('prop_vrm_init')
+  );
+
+  if (validHistory.length === 0) {
+    const cleanedRows = (mill.hourlyRows || []).map((r) => ({
+      ...r,
+      proporsiVersionId: undefined,
+      proporsiDisplay: '',
+      admixtureDisplay: '',
+    }));
+    const hasHourlyData = cleanedRows.some(
+      (r) =>
+        r.blaine !== null ||
+        r.residuR45 !== null ||
+        r.moistureH2O !== null ||
+        r.so3 !== null ||
+        r.freelimeFCaO !== null ||
+        r.tph !== null
+    );
+    return {
+      ...mill,
+      isRunning: hasHourlyData,
+      productType: '',
+      siloName: '',
+      tphFeeding: 0,
+      admixtureName: '',
+      admixturePpm: 0,
+      proporsiHistory: [],
+      hourlyRows: cleanedRows,
+    };
+  }
+
+  const latestProp = validHistory[validHistory.length - 1];
+  return {
+    ...mill,
+    productType: latestProp.productType || mill.productType,
+    siloName: latestProp.siloName || mill.siloName,
+    tphFeeding: latestProp.tphFeeding || mill.tphFeeding || 100,
+    admixtureName: latestProp.admixtureName || mill.admixtureName,
+    admixturePpm: latestProp.admixturePpm ?? mill.admixturePpm,
+    proporsiHistory: validHistory,
+  };
+}
+
+export function sanitizeShiftSession(session: ShiftSession): ShiftSession {
+  if (!session) return session;
+  return {
+    ...session,
+    tm: sanitizeMillSessionData(session.tm),
+    vrm: sanitizeMillSessionData(session.vrm),
+  };
+}
+
+/**
+ * Creates a fresh shift session (Clean slate, zero residuals, no active proportions)
  */
 export function createInitialShiftSession(
   shiftName: 'SHIFT 1' | 'SHIFT 2' | 'SHIFT 3' | 'AM 1' | 'PM 1' | 'AM 2' | 'PM 2' = 'SHIFT 2',
@@ -326,11 +321,8 @@ export function createInitialShiftSession(
 ): ShiftSession {
   const shiftDef = SHIFT_DEFINITIONS[shiftName] || SHIFT_DEFINITIONS['SHIFT 2'];
 
-  // TM is Mill 1 (e.g. PCC NON FA, SILO 5)
-  const tmData = createInitialMillData('Tube Mill (TM)', shiftDef.hours, 'PCC NON FA', 'SILO 5', true, true);
-  
-  // VRM is Mill 2 (e.g. PCC Plus FA, SILO 4)
-  const vrmData = createInitialMillData('Vertical Roller Mill (VRM)', shiftDef.hours, 'PCC Plus FA', 'SILO 4', true, true);
+  const tmData = createInitialMillData('Tube Mill (TM)', shiftDef.hours, '', '', false, true);
+  const vrmData = createInitialMillData('Vertical Roller Mill (VRM)', shiftDef.hours, '', '', false, true);
 
   return {
     id: `shift_${shiftName.replace(/\s+/g, '_')}_${date}`,

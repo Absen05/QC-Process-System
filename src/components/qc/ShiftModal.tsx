@@ -182,12 +182,12 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               Konfigurasi Operasi Dual-Mill
             </span>
 
-            {/* Mill 1: Tube Mill (TM) */}
+            {/* Tube Mill (TM) */}
             <div className="p-3 bg-slate-100 border-2 border-slate-400 rounded-xl space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 font-bold text-slate-900">
                   <Factory className="w-4 h-4 text-amber-600" />
-                  <span>Mill 1: Tube Mill (TM)</span>
+                  <span>Tube Mill (TM)</span>
                 </div>
                 <button
                   type="button"
@@ -230,12 +230,12 @@ export const ShiftModal: React.FC<ShiftModalProps> = ({
               )}
             </div>
 
-            {/* Mill 2: Vertical Roller Mill (VRM) */}
+            {/* Vertical Roller Mill (VRM) */}
             <div className="p-3 bg-slate-100 border-2 border-slate-400 rounded-xl space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 font-bold text-slate-900">
                   <Factory className="w-4 h-4 text-[#0284C7]" />
-                  <span>Mill 2: Vertical Roller Mill (VRM)</span>
+                  <span>Vertical Roller Mill (VRM)</span>
                 </div>
                 <button
                   type="button"

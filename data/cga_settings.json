@@ -1,0 +1,30 @@
+[
+  {
+    "id": "cga_1",
+    "notes": "Optimasi kehalusan & strength",
+    "cgaBrand": "SIKA",
+    "dosagePpm": 400,
+    "productType": "PCC Plus FA"
+  },
+  {
+    "id": "cga_2",
+    "notes": "Pengendali pack set",
+    "cgaBrand": "CONCH",
+    "dosagePpm": 350,
+    "productType": "PCC NON FA"
+  },
+  {
+    "id": "cga_4",
+    "notes": "Kuat tekan awal",
+    "cgaBrand": "SIKA",
+    "dosagePpm": 300,
+    "productType": "SPK"
+  },
+  {
+    "id": "cga_5",
+    "notes": "Workability semen cor",
+    "cgaBrand": "CONCH",
+    "dosagePpm": 400,
+    "productType": "OPC G"
+  }
+]

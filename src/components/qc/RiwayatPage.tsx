@@ -208,7 +208,7 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
                 <div className="px-4 py-2.5 bg-slate-700 text-white flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-xs">
                     <Factory className="w-4 h-4 text-amber-400" />
-                    <span>{isTM ? 'Mill 1: Tube Mill (TM)' : 'Mill 2: Vertical Roller Mill (VRM)'}</span>
+                    <span>{isTM ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)'}</span>
                     <span>— {mill.productType} ({mill.siloName})</span>
                   </div>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${

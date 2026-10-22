@@ -1,0 +1,90 @@
+{
+  "Tube Mill (TM)": {
+    "SPK": {
+      "trass": 15.8,
+      "flyAsh": 10,
+      "gypsum": 3.4,
+      "clinker": 55,
+      "limestone": 15.8
+    },
+    "OPC G": {
+      "trass": 0,
+      "flyAsh": 0,
+      "gypsum": 3.8,
+      "clinker": 88,
+      "limestone": 8.2
+    },
+    "OPC P": {
+      "trass": 0,
+      "flyAsh": 0,
+      "gypsum": 3.8,
+      "clinker": 90,
+      "limestone": 6.2
+    },
+    "PCC WS": {
+      "trass": 10,
+      "flyAsh": 0,
+      "gypsum": 3.4,
+      "clinker": 58,
+      "limestone": 28.6
+    },
+    "PCC NON FA": {
+      "trass": 20,
+      "flyAsh": 0,
+      "gypsum": 3.4,
+      "clinker": 57.8,
+      "limestone": 18.8
+    },
+    "PCC Plus FA": {
+      "trass": 15,
+      "flyAsh": 5,
+      "gypsum": 3.4,
+      "clinker": 57.8,
+      "limestone": 18.8
+    }
+  },
+  "Vertical Roller Mill (VRM)": {
+    "SPK": {
+      "trass": 15.8,
+      "flyAsh": 10,
+      "gypsum": 3.4,
+      "clinker": 55,
+      "limestone": 15.8
+    },
+    "OPC G": {
+      "trass": 0,
+      "flyAsh": 0,
+      "gypsum": 3.8,
+      "clinker": 88,
+      "limestone": 8.2
+    },
+    "OPC P": {
+      "trass": 0,
+      "flyAsh": 0,
+      "gypsum": 3.8,
+      "clinker": 90,
+      "limestone": 6.2
+    },
+    "PCC WS": {
+      "trass": 10,
+      "flyAsh": 0,
+      "gypsum": 3.4,
+      "clinker": 58,
+      "limestone": 28.6
+    },
+    "PCC NON FA": {
+      "trass": 31.4,
+      "flyAsh": 0,
+      "gypsum": 2.8,
+      "clinker": 57.8,
+      "limestone": 8
+    },
+    "PCC Plus FA": {
+      "trass": 26.4,
+      "flyAsh": 5,
+      "gypsum": 2.8,
+      "clinker": 57.8,
+      "limestone": 8
+    }
+  }
+}

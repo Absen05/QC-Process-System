@@ -514,10 +514,14 @@ function renderCleanIncomingMaterials(materials: UnifiedIncomingMaterial[]): str
   for (const m of materials) {
     const p = m.params;
 
-    // Check if it's a simple percent / status item
-    if (m.enabledParams.includes('valuePercent') && !m.enabledParams.includes('blaine') && !m.enabledParams.includes('c3s')) {
-      if (p.valuePercent !== null && p.valuePercent !== undefined) {
-        const valStr = p.valuePercent.toString().replace('.', ',');
+    // Check if it's a simple percent / status item (h2o or legacy valuePercent)
+    const isSinglePercent = (m.enabledParams.includes('h2o') || m.enabledParams.includes('valuePercent')) &&
+      !m.enabledParams.includes('blaine') && !m.enabledParams.includes('c3s') && !m.enabledParams.includes('r45');
+
+    if (isSinglePercent) {
+      const val = p.h2o !== null && p.h2o !== undefined ? p.h2o : p.valuePercent;
+      if (val !== null && val !== undefined) {
+        const valStr = val.toString().replace('.', ',');
         blocks.push(`*${m.name}* : *${valStr}%*`);
       } else if (p.statusText) {
         blocks.push(`*${m.name}* : **% (${p.statusText})`);

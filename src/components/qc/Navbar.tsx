@@ -13,11 +13,12 @@ import {
   History,
   Lock,
   Scale,
-  Package
+  Package,
+  TrendingUp
 } from 'lucide-react';
 import { formatIndonesianDate } from '../../utils/qcCalculations';
 
-export type MainAppTab = 'grid' | 'proporsi' | 'data_wf' | 'data_cp' | 'materials' | 'report' | 'riwayat' | 'master';
+export type MainAppTab = 'grid' | 'proporsi' | 'data_wf' | 'data_cp' | 'materials' | 'report' | 'riwayat' | 'master' | 'analytics';
 
 interface NavbarProps {
   currentTab: MainAppTab;
@@ -37,13 +38,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   session,
   onOpenAiModal,
   onOpenProfileModal,
-  onLogout,
 }) => {
   const isSupervisor = currentUser.role === 'supervisor';
 
   return (
     <header className="sticky top-0 z-30 bg-slate-800 border-b-2 border-slate-600 shadow-md">
-      {/* Top Bar: Brand, Static Badges (Poin 5.1), AI Trigger & User Profile */}
+      {/* Top Bar: Brand, Static Badges, AI Trigger (SI Only) & User Profile */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5">
         <div className="flex items-center justify-between gap-3">
           
@@ -67,7 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Header Bersih & Statis (Read-Only) - Sesuai Poin 5.1 */}
+          {/* Header Bersih & Statis (Read-Only) */}
           {!isSupervisor ? (
             <div className="hidden md:flex items-center gap-2">
               {/* [ 🟢 VRM / TM AKTIF ] */}
@@ -108,17 +108,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
-          {/* AI Trigger & User / Logout Actions */}
+          {/* Action Area: SI Features & Profile Modal */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* ✨ Flexible AI Trigger Button */}
-            <button
-              onClick={onOpenAiModal}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm transition-all active:scale-95"
-              title="Buka Analisa Tren Kualitas AI (Google Gemini)"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="whitespace-nowrap">Analisa AI</span>
-            </button>
+            {/* Supabase Status Badge (SI / Supervisor Only) */}
+            {isSupervisor && (
+              <div 
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-950/70 border border-emerald-500/80 rounded-lg text-emerald-300 font-mono text-[11px] font-semibold select-none shadow-2xs"
+                title="Terhubung ke Supabase PostgreSQL (gsggtrwpoiegplbibuxg)"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Supabase Cloud</span>
+              </div>
+            )}
+
+            {/* Analisa AI Trigger Button (SI / Supervisor Only) */}
+            {isSupervisor && (
+              <button
+                onClick={onOpenAiModal}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-[#0284C7] hover:bg-sky-700 rounded-lg shadow-sm transition-all active:scale-95"
+                title="Buka Analisa Tren Kualitas AI (Google Gemini)"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="whitespace-nowrap">Analisa AI</span>
+              </button>
+            )}
 
             {/* Mobile Statis Shift Badge */}
             {!isSupervisor && (
@@ -128,7 +141,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* User Profile & PIN Menu Button */}
+            {/* User Profile & PIN Menu Button (Logout exclusively accessible inside Profile Modal) */}
             <button
               onClick={onOpenProfileModal}
               className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition-all shadow-xs ${
@@ -146,28 +159,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="text-[9px] text-slate-300 leading-none">Ubah PIN / Profil</div>
               </div>
             </button>
-
-            {/* Ganti Shift / Logout Resmi (Poin 5.1: Ganti shift hanya via keluar/logout resmi) */}
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-red-200 bg-red-950/80 hover:bg-red-900 border border-red-700 rounded-lg transition-colors shadow-2xs"
-                title="Keluar akun dan pilih/ganti shift lain"
-              >
-                <span>Ganti Shift</span>
-              </button>
-            )}
           </div>
 
         </div>
       </div>
 
-      {/* Navigation Tabs Bar (Solid background & Role-Based Tabs Poin 1) */}
+      {/* Navigation Tabs Bar */}
       <div className="border-t-2 border-slate-700 bg-slate-900">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 flex items-center justify-between overflow-x-auto">
           <nav className="flex space-x-1.5 py-1.5" aria-label="Tabs">
             {isSupervisor ? (
-              /* Khusus Dashboard SI (Admin) - HANYA MASTER DATA & RIWAYAT (Poin 1) */
+              /* Khusus Dashboard SI (Admin) - MASTER DATA, DASHBOARD ANALITIK, & RIWAYAT */
               <>
                 <button
                   onClick={() => onSelectTab('master')}
@@ -179,6 +181,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <ShieldCheck className="w-4 h-4" />
                   <span>MASTER DATA</span>
+                </button>
+
+                <button
+                  onClick={() => onSelectTab('analytics')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold rounded-lg whitespace-nowrap transition-colors ${
+                    currentTab === 'analytics'
+                      ? 'bg-[#E31E24] text-white shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>DASHBOARD ANALITIK</span>
                 </button>
 
                 <button

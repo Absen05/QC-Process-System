@@ -15,20 +15,21 @@ import {
   DEFAULT_MASTER_TARGETS, 
   DEFAULT_QUALITY_SPECS,
   DEFAULT_CGA_SETTINGS,
-  createInitialShiftSession 
+  createInitialShiftSession,
+  sanitizeShiftSession
 } from '../data/qcDefaults';
 import { SHIFT_DEFINITIONS } from '../utils/qcCalculations';
 
 const STORAGE_KEYS = {
   CURRENT_ROLE: 'qc_cemindo_current_role',
   AUTH_SESSION: 'qc_cemindo_auth_session',
-  USERS_LIST: 'qc_cemindo_users_list_v2',
-  MASTER_TARGETS: 'qc_cemindo_master_targets_v2',
-  PRODUCT_LIST: 'qc_cemindo_product_list_v2',
-  QUALITY_SPECS: 'qc_cemindo_quality_specs_v2',
-  CGA_SETTINGS: 'qc_cemindo_cga_settings_v2',
-  ACTIVE_SESSION: 'qc_cemindo_active_session_v3',
-  SHIFT_ARCHIVES: 'qc_cemindo_shift_archives_v2',
+  USERS_LIST: 'qc_cemindo_users_list_v3',
+  MASTER_TARGETS: 'qc_cemindo_master_targets_v3',
+  PRODUCT_LIST: 'qc_cemindo_product_list_v3',
+  QUALITY_SPECS: 'qc_cemindo_quality_specs_v3',
+  CGA_SETTINGS: 'qc_cemindo_cga_settings_v3',
+  ACTIVE_SESSION: 'qc_cemindo_active_session_v4',
+  SHIFT_ARCHIVES: 'qc_cemindo_shift_archives_v4',
 };
 
 // ==========================================
@@ -68,7 +69,6 @@ export function updateUserPin(userName: string, newPin: string): boolean {
   };
   saveStoredUsers(users);
 
-  // If currently logged in user updated their own PIN, sync auth session
   const auth = getStoredAuth();
   if (auth.isLoggedIn && auth.user && auth.user.name.toUpperCase() === userName.toUpperCase()) {
     auth.user.pin = newPin;
@@ -141,14 +141,14 @@ export function startNewShiftSession(
   shiftName: ShiftName,
   date: string,
   analystName: string,
-  tmRunning: boolean = true,
-  tmProduct: ProductType = 'PCC NON FA',
-  tmSilo: string = 'SILO 5',
-  vrmRunning: boolean = true,
-  vrmProduct: ProductType = 'PCC Plus FA',
-  vrmSilo: string = 'SILO 4'
+  tmRunning: boolean = false,
+  tmProduct: ProductType = '',
+  tmSilo: string = '',
+  vrmRunning: boolean = false,
+  vrmProduct: ProductType = '',
+  vrmSilo: string = ''
 ): ShiftSession {
-  return switchOrStartShift(date, shiftName, analystName, tmRunning, tmProduct, tmSilo, vrmRunning, vrmProduct, vrmSilo);
+  return switchOrStartShift(date, shiftName, analystName, tmRunning, tmProduct, tmSilo, vrmRunning, vrmProduct, vrmSilo, null);
 }
 
 // ==========================================
@@ -180,7 +180,10 @@ export function getStoredMasterTargets(): MasterTargetDryMap {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.MASTER_TARGETS);
     if (data) {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (parsed && parsed['Tube Mill (TM)'] && parsed['Vertical Roller Mill (VRM)']) {
+        return parsed;
+      }
     }
   } catch (err) {
     console.error('Failed to load master targets:', err);
@@ -211,29 +214,53 @@ export function addNewProductType(
   targets['Vertical Roller Mill (VRM)'][productName] = vrmTarget;
   saveStoredMasterTargets(targets);
 
-  // Also add default Quality Spec and CGA setting for the new product
   const qualitySpecs = getStoredQualitySpecs();
   if (!qualitySpecs.some(s => s.productType === productName)) {
-    qualitySpecs.push({
-      productType: productName,
-      blaine: { min: 3800, max: 4200, std: 3900 },
-      residuR45: { min: 8.0, max: 14.0, std: 11.0 },
-      moistureH2O: { min: 0.05, max: 0.30, std: 0.15 },
-      so3: { min: 1.90, max: 2.30, std: 2.10 },
-      freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
-    });
+    qualitySpecs.push(
+      {
+        id: `qs_tm_${Date.now()}`,
+        millType: 'TM',
+        productType: productName,
+        blaine: { min: 4700, max: 4900, std: 4800 },
+        residuR45: { min: 0, max: 5.0, std: 0 },
+        moistureH2O: { min: 0.05, max: 0.30, std: 0.15 },
+        so3: { min: 1.60, max: 1.80, std: 1.70 },
+        freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
+      },
+      {
+        id: `qs_vrm_${Date.now() + 1}`,
+        millType: 'VRM',
+        productType: productName,
+        blaine: { min: 4700, max: 4900, std: 4800 },
+        residuR45: { min: 0, max: 5.0, std: 0 },
+        moistureH2O: { min: 0.05, max: 0.30, std: 0.15 },
+        so3: { min: 1.60, max: 1.80, std: 1.70 },
+        freelimeFCaO: { min: 0.50, max: 1.50, std: 1.00 },
+      }
+    );
     saveStoredQualitySpecs(qualitySpecs);
   }
 
   const cgaSettings = getStoredCgaSettings();
   if (!cgaSettings.some(c => c.productType === productName)) {
-    cgaSettings.push({
-      id: `cga_${Date.now()}`,
-      productType: productName,
-      cgaBrand: 'SIKA',
-      dosagePpm: 400,
-      notes: 'Standar awal',
-    });
+    cgaSettings.push(
+      {
+        id: `cga_tm_${Date.now()}`,
+        millType: 'TM',
+        productType: productName,
+        cgaBrand: 'SIKA',
+        dosagePpm: 400,
+        notes: 'Standar awal TM',
+      },
+      {
+        id: `cga_vrm_${Date.now() + 1}`,
+        millType: 'VRM',
+        productType: productName,
+        cgaBrand: 'SIKA',
+        dosagePpm: 400,
+        notes: 'Standar awal VRM',
+      }
+    );
     saveStoredCgaSettings(cgaSettings);
   }
 }
@@ -296,7 +323,14 @@ export function getStoredArchives(): ArchiveMap {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.SHIFT_ARCHIVES);
     if (data) {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed === 'object') {
+        const cleaned: ArchiveMap = {};
+        for (const k of Object.keys(parsed)) {
+          cleaned[k] = sanitizeShiftSession(parsed[k]);
+        }
+        return cleaned;
+      }
     }
   } catch (err) {
     console.error('Failed to load archives:', err);
@@ -306,9 +340,10 @@ export function getStoredArchives(): ArchiveMap {
 
 export function saveShiftArchive(session: ShiftSession): void {
   try {
+    const clean = sanitizeShiftSession(session);
     const archives = getStoredArchives();
-    const key = `${session.date}_${session.shiftName}`;
-    archives[key] = session;
+    const key = `${clean.date}_${clean.shiftName}`;
+    archives[key] = clean;
     localStorage.setItem(STORAGE_KEYS.SHIFT_ARCHIVES, JSON.stringify(archives));
   } catch (err) {
     console.error('Failed to save shift archive:', err);
@@ -318,7 +353,7 @@ export function saveShiftArchive(session: ShiftSession): void {
 export function getArchivedShift(date: string, shiftName: string): ShiftSession | null {
   const archives = getStoredArchives();
   const key = `${date}_${shiftName}`;
-  return archives[key] || null;
+  return archives[key] ? sanitizeShiftSession(archives[key]) : null;
 }
 
 // ==========================================
@@ -329,9 +364,9 @@ export function getStoredActiveSession(): ShiftSession {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
     if (data) {
-      const parsed = JSON.parse(data);
-      if (parsed && parsed.tm && parsed.vrm && parsed.incomingMaterials) {
-        // Ensure cpProducts exists
+      const rawParsed = JSON.parse(data);
+      if (rawParsed && rawParsed.tm && rawParsed.vrm && rawParsed.incomingMaterials) {
+        const parsed = sanitizeShiftSession(rawParsed);
         if (!parsed.cpProducts || !Array.isArray(parsed.cpProducts) || parsed.cpProducts.length < 2) {
           parsed.cpProducts = [
             {
@@ -356,7 +391,6 @@ export function getStoredActiveSession(): ShiftSession {
             },
           ];
         }
-        // Ensure hourly rows strictly match the shift definition's exact hours (Poin 1: Shift 2 wajib 8 baris 08:00 - 15:00)
         const shiftDef = SHIFT_DEFINITIONS[parsed.shiftName as ShiftName] || SHIFT_DEFINITIONS['SHIFT 2'];
         const alignHours = (mill: any) => {
           if (!mill) return;
@@ -394,94 +428,25 @@ export function getStoredActiveSession(): ShiftSession {
 
 export function saveStoredActiveSession(session: ShiftSession): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(session));
-    // Automatically keep the archive in sync for historical viewing!
-    saveShiftArchive(session);
+    const clean = sanitizeShiftSession(session);
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(clean));
+    saveShiftArchive(clean);
   } catch (err) {
     console.error('Failed to save active session:', err);
   }
 }
 
-/**
- * Resumes the latest active state for a user upon login:
- * Preserves all latest active proportions, incoming parameters, mill running status,
- * WF and CP data left by coworkers from the previous shift without resetting.
- */
-export function resumeLatestActiveStateForUser(
-  userName: string,
-  targetDate?: string,
-  targetShift?: ShiftName
-): ShiftSession {
-  const current = getStoredActiveSession();
-
-  if (targetDate) {
-    current.date = targetDate;
-  }
-
-  if (targetShift && current.shiftName !== targetShift) {
-    current.shiftName = targetShift;
-    const shiftDef = SHIFT_DEFINITIONS[targetShift] || SHIFT_DEFINITIONS['SHIFT 2'];
-    current.shiftHours = shiftDef.timeRange;
-
-    // Adjust row counts if shift duration differs while preserving values
-    if (current.tm.hourlyRows.length !== shiftDef.hours.length) {
-      current.tm.hourlyRows = shiftDef.hours.map((hour, idx) => ({
-        hour,
-        blaine: current.tm.hourlyRows[idx]?.blaine ?? null,
-        residuR45: current.tm.hourlyRows[idx]?.residuR45 ?? null,
-        moistureH2O: current.tm.hourlyRows[idx]?.moistureH2O ?? null,
-        so3: current.tm.hourlyRows[idx]?.so3 ?? null,
-        freelimeFCaO: current.tm.hourlyRows[idx]?.freelimeFCaO ?? null,
-        tph: current.tm.hourlyRows[idx]?.tph ?? null,
-        proporsiVersionId: current.tm.hourlyRows[idx]?.proporsiVersionId,
-        proporsiDisplay: current.tm.hourlyRows[idx]?.proporsiDisplay,
-        admixtureDisplay: current.tm.hourlyRows[idx]?.admixtureDisplay,
-        notes: current.tm.hourlyRows[idx]?.notes,
-      }));
-    }
-
-    if (current.vrm.hourlyRows.length !== shiftDef.hours.length) {
-      current.vrm.hourlyRows = shiftDef.hours.map((hour, idx) => ({
-        hour,
-        blaine: current.vrm.hourlyRows[idx]?.blaine ?? null,
-        residuR45: current.vrm.hourlyRows[idx]?.residuR45 ?? null,
-        moistureH2O: current.vrm.hourlyRows[idx]?.moistureH2O ?? null,
-        so3: current.vrm.hourlyRows[idx]?.so3 ?? null,
-        freelimeFCaO: current.vrm.hourlyRows[idx]?.freelimeFCaO ?? null,
-        tph: current.vrm.hourlyRows[idx]?.tph ?? null,
-        proporsiVersionId: current.vrm.hourlyRows[idx]?.proporsiVersionId,
-        proporsiDisplay: current.vrm.hourlyRows[idx]?.proporsiDisplay,
-        admixtureDisplay: current.vrm.hourlyRows[idx]?.admixtureDisplay,
-        notes: current.vrm.hourlyRows[idx]?.notes,
-      }));
-    }
-  }
-
-  current.analystName = userName;
-  if (targetDate && targetShift && (current.date !== targetDate || current.shiftName !== targetShift)) {
-    return switchOrStartShift(targetDate, targetShift, userName);
-  }
-  saveStoredActiveSession(current);
-  return current;
-}
-
-/**
- * Switch or start a new shift:
- * 1. Archives current active shift
- * 2. Checks if the target date+shift has an existing archive (to resume)
- * 3. If no archive exists, carries forward all active proportions, incoming configurations,
- *    and mill settings while resetting hourly rows for the fresh shift (Poin 3: Estafet Proporsi).
- */
 export function switchOrStartShift(
   targetDate: string,
   targetShift: ShiftName,
   analystName: string,
-  tmRunning: boolean = true,
-  tmProduct: ProductType = 'PCC NON FA',
-  tmSilo: string = 'SILO 5',
-  vrmRunning: boolean = true,
-  vrmProduct: ProductType = 'PCC Plus FA',
-  vrmSilo: string = 'SILO 4'
+  _tmRunning: boolean = false,
+  _tmProduct: ProductType = '',
+  _tmSilo: string = '',
+  _vrmRunning: boolean = false,
+  _vrmProduct: ProductType = '',
+  _vrmSilo: string = '',
+  _priorSessionParam?: ShiftSession | null
 ): ShiftSession {
   // 1. Archive current active session
   try {
@@ -493,129 +458,19 @@ export function switchOrStartShift(
     console.error('Error auto-archiving prior shift:', err);
   }
 
-  // 2. Check if archive exists for target
+  // 2. Check if archive exists for target date & shift
   const existing = getArchivedShift(targetDate, targetShift);
   if (existing) {
-    const resumed: ShiftSession = {
+    const resumed: ShiftSession = sanitizeShiftSession({
       ...existing,
       analystName: analystName || existing.analystName,
-    };
+    });
     saveStoredActiveSession(resumed);
     return resumed;
   }
 
-  // 3. Create fresh shift with ESTAFET PROPORSI (Poin 3)
-  const current = getStoredActiveSession();
+  // 3. Create fresh shift 100% BERSIH (Tanpa proporsi aktif fiktif)
   const freshSession = createInitialShiftSession(targetShift, targetDate, analystName);
-  const shiftDef = SHIFT_DEFINITIONS[targetShift] || SHIFT_DEFINITIONS['SHIFT 2'];
-  const startHour = shiftDef.hours[0];
-  const endHour = shiftDef.hours[shiftDef.hours.length - 1];
-
-  // Estafet Proporsi TM (Mill 1)
-  freshSession.tm.isRunning = tmRunning;
-  const latestTmProp = current?.tm?.proporsiHistory?.[current.tm.proporsiHistory.length - 1];
-  if (latestTmProp) {
-    const tmSummaryParts: string[] = [];
-    if (latestTmProp.materials.clinker.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.clinker.dry}% Clk`);
-    if (latestTmProp.materials.gypsum.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.gypsum.dry}% Gyp`);
-    if (latestTmProp.materials.limestone.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.limestone.dry}% Lst`);
-    if (latestTmProp.materials.trass.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.trass.dry}% Trass`);
-    if (latestTmProp.materials.flyAsh.dry > 0) tmSummaryParts.push(`${latestTmProp.materials.flyAsh.dry}% FA`);
-    const tmPropSummary = tmSummaryParts.join(' | ');
-    const tmAdmSummary = `${latestTmProp.admixtureName} ${latestTmProp.admixturePpm} PPM`;
-
-    const carriedTmProp = {
-      ...latestTmProp,
-      id: `prop_tm_init_${Date.now()}`,
-      versionNumber: 1,
-      label: `Proporsi 1 (${startHour} - ${endHour})`,
-      appliedAtHour: startHour,
-      endAtHour: endHour,
-      savedAt: new Date().toISOString(),
-    };
-
-    freshSession.tm.productType = latestTmProp.productType || tmProduct;
-    freshSession.tm.siloName = latestTmProp.siloName || tmSilo;
-    freshSession.tm.tphFeeding = latestTmProp.tphFeeding || 100.0;
-    freshSession.tm.admixtureName = latestTmProp.admixtureName;
-    freshSession.tm.admixturePpm = latestTmProp.admixturePpm;
-    freshSession.tm.proporsiHistory = [carriedTmProp];
-    freshSession.tm.hourlyRows = shiftDef.hours.map(hour => ({
-      hour,
-      blaine: null,
-      residuR45: null,
-      moistureH2O: null,
-      so3: null,
-      freelimeFCaO: null,
-      tph: latestTmProp.tphFeeding || 100.0,
-      proporsiVersionId: carriedTmProp.id,
-      proporsiDisplay: tmPropSummary,
-      admixtureDisplay: tmAdmSummary,
-      notes: undefined,
-    }));
-  } else {
-    freshSession.tm.productType = tmProduct;
-    freshSession.tm.siloName = tmSilo;
-  }
-
-  // Estafet Proporsi VRM (Mill 2)
-  freshSession.vrm.isRunning = vrmRunning;
-  const latestVrmProp = current?.vrm?.proporsiHistory?.[current.vrm.proporsiHistory.length - 1];
-  if (latestVrmProp) {
-    const vrmSummaryParts: string[] = [];
-    if (latestVrmProp.materials.clinker.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.clinker.dry}% Clk`);
-    if (latestVrmProp.materials.gypsum.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.gypsum.dry}% Gyp`);
-    if (latestVrmProp.materials.limestone.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.limestone.dry}% Lst`);
-    if (latestVrmProp.materials.trass.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.trass.dry}% Trass`);
-    if (latestVrmProp.materials.flyAsh.dry > 0) vrmSummaryParts.push(`${latestVrmProp.materials.flyAsh.dry}% FA`);
-    const vrmPropSummary = vrmSummaryParts.join(' | ');
-    const vrmAdmSummary = `${latestVrmProp.admixtureName} ${latestVrmProp.admixturePpm} PPM`;
-
-    const carriedVrmProp = {
-      ...latestVrmProp,
-      id: `prop_vrm_init_${Date.now()}`,
-      versionNumber: 1,
-      label: `Proporsi 1 (${startHour} - ${endHour})`,
-      appliedAtHour: startHour,
-      endAtHour: endHour,
-      savedAt: new Date().toISOString(),
-    };
-
-    freshSession.vrm.productType = latestVrmProp.productType || vrmProduct;
-    freshSession.vrm.siloName = latestVrmProp.siloName || vrmSilo;
-    freshSession.vrm.tphFeeding = latestVrmProp.tphFeeding || 100.0;
-    freshSession.vrm.admixtureName = latestVrmProp.admixtureName;
-    freshSession.vrm.admixturePpm = latestVrmProp.admixturePpm;
-    freshSession.vrm.proporsiHistory = [carriedVrmProp];
-    freshSession.vrm.hourlyRows = shiftDef.hours.map(hour => ({
-      hour,
-      blaine: null,
-      residuR45: null,
-      moistureH2O: null,
-      so3: null,
-      freelimeFCaO: null,
-      tph: latestVrmProp.tphFeeding || 100.0,
-      proporsiVersionId: carriedVrmProp.id,
-      proporsiDisplay: vrmPropSummary,
-      admixtureDisplay: vrmAdmSummary,
-      notes: undefined,
-    }));
-  } else {
-    freshSession.vrm.productType = vrmProduct;
-    freshSession.vrm.siloName = vrmSilo;
-  }
-
-  // Carry forward incoming materials and CP product configurations
-  if (current?.incomingMaterials?.length > 0) {
-    freshSession.incomingMaterials = JSON.parse(JSON.stringify(current.incomingMaterials));
-  }
-  if (current?.cpProducts?.length === 2) {
-    freshSession.cpProducts = [
-      { ...current.cpProducts[0], blaine: null, r45: null, h2o: null, so3: null },
-      { ...current.cpProducts[1], blaine: null, r45: null, h2o: null, so3: null },
-    ];
-  }
-
   saveStoredActiveSession(freshSession);
   return freshSession;
 }
