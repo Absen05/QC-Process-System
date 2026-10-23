@@ -95,6 +95,7 @@ function sanitizeMillOnServer(mill: any) {
   if (validHistory.length === 0) {
     const cleanedRows = (mill.hourlyRows || []).map((r: any) => ({
       ...r,
+      productType: undefined,
       proporsiVersionId: undefined,
       proporsiDisplay: '',
       admixtureDisplay: '',
@@ -120,7 +121,30 @@ function sanitizeMillOnServer(mill: any) {
       hourlyRows: cleanedRows,
     };
   }
-  return { ...mill, proporsiHistory: validHistory };
+  const latestProp = validHistory[validHistory.length - 1];
+  const syncedRows = (mill.hourlyRows || []).map((r: any) => {
+    if (r.proporsiVersionId) {
+      const matched = validHistory.find((p: any) => p.id === r.proporsiVersionId);
+      if (matched) {
+        return {
+          ...r,
+          productType: r.productType || matched.productType,
+        };
+      }
+    }
+    return r;
+  });
+  return {
+    ...mill,
+    isRunning: true,
+    productType: latestProp.productType || mill.productType,
+    siloName: latestProp.siloName || mill.siloName,
+    tphFeeding: latestProp.tphFeeding || mill.tphFeeding,
+    admixtureName: latestProp.admixtureName || mill.admixtureName,
+    admixturePpm: latestProp.admixturePpm || mill.admixturePpm,
+    proporsiHistory: validHistory,
+    hourlyRows: syncedRows,
+  };
 }
 
 function sanitizeSessionOnServer(session: any) {
@@ -202,7 +226,8 @@ app.get('/api/qc/session', async (req, res) => {
           .order('updated_at', { ascending: false })
           .limit(1);
         if (supaData && supaData.length > 0 && supaData[0].session_data) {
-          return res.json({ session: sanitizeSessionOnServer(supaData[0].session_data), found: true, key: supaData[0].session_id });
+          const cleaned = sanitizeSessionOnServer(supaData[0].session_data);
+          return res.json({ session: cleaned, found: true, key: supaData[0].session_id });
         }
       } catch (e) {}
 
@@ -216,6 +241,8 @@ app.get('/api/qc/session', async (req, res) => {
     }
 
     const key = `${date}_${shift}`;
+    let supaSession: any = null;
+
     // 1. Check Supabase first
     try {
       const { data: supaRow } = await supabase
@@ -224,13 +251,29 @@ app.get('/api/qc/session', async (req, res) => {
         .eq('session_id', key)
         .maybeSingle();
       if (supaRow && supaRow.session_data) {
-        return res.json({ session: sanitizeSessionOnServer(supaRow.session_data), found: true, key });
+        supaSession = sanitizeSessionOnServer(supaRow.session_data);
       }
     } catch (e) {}
 
-    // 2. Fallback local cache
-    if (sessions[key]) {
-      return res.json({ session: sanitizeSessionOnServer(sessions[key]), found: true, key });
+    const localSession = sessions[key] ? sanitizeSessionOnServer(sessions[key]) : null;
+
+    if (supaSession && localSession) {
+      const supaTime = supaSession._serverUpdatedAt ? new Date(supaSession._serverUpdatedAt).getTime() : 0;
+      const localTime = localSession._serverUpdatedAt ? new Date(localSession._serverUpdatedAt).getTime() : 0;
+      const chosen = localTime > supaTime ? localSession : supaSession;
+      sessions[key] = chosen;
+      writeAllSessions(sessions);
+      return res.json({ session: chosen, found: true, key });
+    }
+
+    if (supaSession) {
+      sessions[key] = supaSession;
+      writeAllSessions(sessions);
+      return res.json({ session: supaSession, found: true, key });
+    }
+
+    if (localSession) {
+      return res.json({ session: localSession, found: true, key });
     }
 
     return res.json({ session: null, found: false, priorSession: null });
@@ -250,15 +293,15 @@ app.post('/api/qc/session', async (req, res) => {
 
     const sessions = readAllSessions();
     const key = `${session.date}_${session.shiftName}`;
-    sessions[key] = {
+    sessions[key] = sanitizeSessionOnServer({
       ...session,
       _serverUpdatedAt: new Date().toISOString(),
-    };
+    });
 
     writeAllSessions(sessions);
 
-    // Sync to Supabase in parallel
-    syncSessionToSupabase(key, sessions[key]);
+    // Sync to Supabase and wait so data is immediately queryable by Admin & Analis
+    await syncSessionToSupabase(key, sessions[key]);
 
     return res.json({ success: true, key, updatedAt: sessions[key]._serverUpdatedAt });
   } catch (error: any) {
@@ -278,6 +321,19 @@ app.post('/api/qc/upsert-cell', async (req, res) => {
     const sessions = readAllSessions();
     const key = `${tanggal}_${shift}`;
     let session = sessions[key];
+
+    if (!session) {
+      try {
+        const { data: supaRow } = await supabase
+          .from('qc_sessions')
+          .select('*')
+          .eq('session_id', key)
+          .maybeSingle();
+        if (supaRow && supaRow.session_data) {
+          session = sanitizeSessionOnServer(supaRow.session_data);
+        }
+      } catch (e) {}
+    }
 
     if (!session) {
       return res.status(404).json({ error: 'Session not found for upsert' });
@@ -311,11 +367,11 @@ app.post('/api/qc/upsert-cell', async (req, res) => {
     }
 
     session._serverUpdatedAt = new Date().toISOString();
-    sessions[key] = session;
+    sessions[key] = sanitizeSessionOnServer(session);
     writeAllSessions(sessions);
 
     // Sync to Supabase
-    syncSessionToSupabase(key, session);
+    await syncSessionToSupabase(key, sessions[key]);
 
     return res.json({ 
       success: true, 
@@ -364,23 +420,34 @@ app.get('/api/qc/proporsi/latest', (req, res) => {
   }
 });
 
-// 5. GET all sessions for Audit / Riwayat
+// 5. GET all sessions for Audit / Riwayat (Merging Supabase & Local Disk)
 app.get('/api/qc/all-sessions', async (_req, res) => {
   try {
-    // Try Supabase first
+    const localSessions = readAllSessions();
+    const merged: Record<string, any> = { ...localSessions };
+
     try {
       const { data: supaRows } = await supabase.from('qc_sessions').select('*');
       if (supaRows && supaRows.length > 0) {
-        const mapped: Record<string, any> = {};
         for (const row of supaRows) {
-          mapped[row.session_id] = row.session_data;
+          if (!row.session_id || !row.session_data) continue;
+          const cleanSupa = sanitizeSessionOnServer(row.session_data);
+          const existing = merged[row.session_id];
+          if (!existing) {
+            merged[row.session_id] = cleanSupa;
+          } else {
+            const supaTime = cleanSupa._serverUpdatedAt ? new Date(cleanSupa._serverUpdatedAt).getTime() : 0;
+            const localTime = existing._serverUpdatedAt ? new Date(existing._serverUpdatedAt).getTime() : 0;
+            if (supaTime >= localTime) {
+              merged[row.session_id] = cleanSupa;
+            }
+          }
         }
-        return res.json({ sessions: mapped });
       }
     } catch (e) {}
 
-    const sessions = readAllSessions();
-    return res.json({ sessions });
+    writeAllSessions(merged);
+    return res.json({ sessions: merged });
   } catch (error: any) {
     console.error('Error fetching all sessions:', error);
     return res.status(500).json({ error: 'Failed to fetch all sessions' });
@@ -589,6 +656,7 @@ async function startServer() {
       server: {
         middlewareMode: true,
         hmr: false,
+        watch: null,
       },
       appType: 'spa',
     });

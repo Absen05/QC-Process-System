@@ -453,10 +453,10 @@ function renderCleanMillBlock(mill: MillSessionData): string {
         intervalRows = allRows.slice(effectiveStartIdx, effectiveEndIdx + 1);
       }
 
-      const firstH = intervalRows[0]?.hour || startHour;
+      const firstH = prop.appliedAtHour || intervalRows[0]?.hour || startHour;
       const lastH =
-        intervalRows[intervalRows.length - 1]?.hour ||
         prop.endAtHour ||
+        intervalRows[intervalRows.length - 1]?.hour ||
         allRows[allRows.length - 1]?.hour ||
         firstH;
 
@@ -496,7 +496,6 @@ Blaine : *${avgBlaine}* cm²/gr
 R45 : *${avgR45}*%
 H2O : *${avgH2O}*% 
 SO3 : *${avgSO3}*%
-TPH : *${avgTph}* t/h
 Proportion : ${propStr}`);
     }
 
@@ -543,7 +542,6 @@ Blaine : *${avgBlaine}* cm²/gr
 R45 : *${avgR45}*%
 H2O : *${avgH2O}*% 
 SO3 : *${avgSO3}*%
-TPH : *${avgTph}* t/h
 Proportion : ${propStr}`;
 }
 
@@ -709,8 +707,86 @@ export function checkOpcLimestoneWarning(productType: string, limestoneDry: numb
 }
 
 /**
+ * Mengambil tanggal aktual hari ini dalam zona waktu WIB (Asia/Jakarta) dengan format YYYY-MM-DD
+ */
+export function getCurrentWibDateString(date: Date = new Date()): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    if (year && month && day) {
+      return `${year}-${month}-${day}`;
+    }
+  } catch (e) {
+    // Fallback ke waktu lokal perangkat
+  }
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Mengambil jam, menit, detik, dan format tanggal lengkap aktual dalam zona waktu WIB (Asia/Jakarta)
+ */
+export function getCurrentWibHoursMinutes(date: Date = new Date()): {
+  hours: number;
+  minutes: number;
+  seconds: number;
+  formattedTime: string;
+  formattedFullDate: string;
+} {
+  try {
+    const timeParts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(date);
+
+    const h = parseInt(timeParts.find((p) => p.type === 'hour')?.value || '0', 10) % 24;
+    const m = parseInt(timeParts.find((p) => p.type === 'minute')?.value || '0', 10);
+    const s = parseInt(timeParts.find((p) => p.type === 'second')?.value || '0', 10);
+
+    const formattedFullDate = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(date);
+
+    return {
+      hours: h,
+      minutes: m,
+      seconds: s,
+      formattedTime: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} WIB`,
+      formattedFullDate,
+    };
+  } catch (e) {
+    const h = date.getHours();
+    const m = date.getMinutes();
+    const s = date.getSeconds();
+    return {
+      hours: h,
+      minutes: m,
+      seconds: s,
+      formattedTime: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} WIB`,
+      formattedFullDate: getCurrentWibDateString(date),
+    };
+  }
+}
+
+/**
  * Poin 4: Auto-detect time & restriksi login shift
- * Validasi rentang waktu login:
+ * Validasi rentang waktu login (WIB):
  * - Shift 1 (00:00 - 08:00): Aktif pada rentang 23:00 - 08:30 WIB
  * - Shift 2 (08:00 - 16:00): Aktif pada rentang 07:00 - 16:30 WIB
  * - Shift 3 (16:00 - 24:00): Aktif pada rentang 15:00 - 00:30 WIB
@@ -718,7 +794,8 @@ export function checkOpcLimestoneWarning(productType: string, limestoneDry: numb
  * - Shift PM 1 / PM 2: Aktif pada rentang 19:00 - 08:30 WIB
  */
 export function isShiftAllowedNow(shiftName: ShiftName, date: Date = new Date()): boolean {
-  const totalMins = date.getHours() * 60 + date.getMinutes();
+  const { hours, minutes } = getCurrentWibHoursMinutes(date);
+  const totalMins = hours * 60 + minutes;
 
   switch (shiftName) {
     case 'SHIFT 1':
@@ -739,7 +816,8 @@ export function isShiftAllowedNow(shiftName: ShiftName, date: Date = new Date())
 }
 
 export function getAutoRecommendedShift(date: Date = new Date()): ShiftName {
-  const totalMins = date.getHours() * 60 + date.getMinutes();
+  const { hours, minutes } = getCurrentWibHoursMinutes(date);
+  const totalMins = hours * 60 + minutes;
   if (totalMins >= 420 && totalMins < 900) {
     return 'SHIFT 2';
   }

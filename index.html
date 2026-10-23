@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Defensive guard against browser extension interceptors attempting to assign to window.fetch
+      // Defensive guard against browser extension interceptors and disabled Vite HMR WebSocket errors
       (function() {
         try {
           var realFetch = window.fetch;
@@ -28,6 +28,96 @@
             configurable: true,
             enumerable: true
           });
+        } catch (e) {}
+
+        // Filter out Vite HMR WebSocket console errors in environments where HMR is disabled
+        try {
+          var origConsoleError = console.error;
+          var origConsoleWarn = console.warn;
+          var shouldSuppressLog = function(args) {
+            for (var i = 0; i < args.length; i++) {
+              var str = '';
+              try {
+                str = typeof args[i] === 'string' ? args[i] : (args[i] && args[i].message ? args[i].message : String(args[i]));
+              } catch (_) {}
+              if (
+                str.indexOf('[vite] failed to connect to websocket') !== -1 ||
+                str.indexOf('WebSocket closed without opened') !== -1 ||
+                str.indexOf('vite-hmr') !== -1
+              ) {
+                return true;
+              }
+            }
+            return false;
+          };
+          console.error = function() {
+            if (shouldSuppressLog(arguments)) return;
+            return origConsoleError.apply(console, arguments);
+          };
+          console.warn = function() {
+            if (shouldSuppressLog(arguments)) return;
+            return origConsoleWarn.apply(console, arguments);
+          };
+        } catch (e) {}
+
+        // Prevent Vite HMR client from opening failing WebSocket connections when HMR is disabled
+        try {
+          var NativeWebSocket = window.WebSocket;
+          if (NativeWebSocket) {
+            var PatchedWebSocket = function(url, protocols) {
+              var isViteHmr = false;
+              try {
+                if (protocols === 'vite-hmr' || protocols === 'vite-ping') {
+                  isViteHmr = true;
+                } else if (Array.isArray(protocols) && (protocols.indexOf('vite-hmr') !== -1 || protocols.indexOf('vite-ping') !== -1)) {
+                  isViteHmr = true;
+                }
+              } catch (_) {}
+
+              if (isViteHmr) {
+                var dummyWs = {
+                  url: url || '',
+                  readyState: 1,
+                  protocol: typeof protocols === 'string' ? protocols : 'vite-hmr',
+                  extensions: '',
+                  bufferedAmount: 0,
+                  binaryType: 'blob',
+                  onopen: null,
+                  onerror: null,
+                  onclose: null,
+                  onmessage: null,
+                  addEventListener: function(type, listener) {
+                    if (type === 'open' && typeof listener === 'function') {
+                      setTimeout(function() {
+                        try { listener({ type: 'open', target: dummyWs }); } catch (_) {}
+                      }, 10);
+                    }
+                  },
+                  removeEventListener: function() {},
+                  dispatchEvent: function() { return true; },
+                  send: function() {},
+                  close: function() { dummyWs.readyState = 3; }
+                };
+                setTimeout(function() {
+                  if (typeof dummyWs.onopen === 'function') {
+                    try { dummyWs.onopen({ type: 'open', target: dummyWs }); } catch (_) {}
+                  }
+                }, 10);
+                return dummyWs;
+              }
+
+              if (arguments.length === 1) {
+                return new NativeWebSocket(url);
+              }
+              return new NativeWebSocket(url, protocols);
+            };
+            PatchedWebSocket.prototype = NativeWebSocket.prototype;
+            PatchedWebSocket.CONNECTING = NativeWebSocket.CONNECTING;
+            PatchedWebSocket.OPEN = NativeWebSocket.OPEN;
+            PatchedWebSocket.CLOSING = NativeWebSocket.CLOSING;
+            PatchedWebSocket.CLOSED = NativeWebSocket.CLOSED;
+            window.WebSocket = PatchedWebSocket;
+          }
         } catch (e) {}
 
         // Suppress unhandled extension and WebSocket errors (HMR in container proxy)

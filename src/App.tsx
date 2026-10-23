@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShiftSession, 
   MasterTargetDryMap, 
@@ -13,6 +13,7 @@ import {
   logoutUser, 
   getStoredActiveSession, 
   saveStoredActiveSession, 
+  saveShiftArchive,
   getStoredMasterTargets, 
   saveStoredMasterTargets, 
   saveStoredQualitySpecs,
@@ -24,11 +25,13 @@ import {
 import { 
   fetchCloudSession, 
   saveCloudSession, 
+  fetchAllCloudSessions,
   fetchCloudMasterTargets, 
   fetchCloudQualitySpecs, 
   fetchCloudCgaSettings, 
   fetchCloudProductList 
 } from './services/qcApi';
+import { getCurrentWibDateString, getAutoRecommendedShift } from './utils/qcCalculations';
 
 import { Navbar, MainAppTab } from './components/qc/Navbar';
 import { LoginPage } from './components/qc/LoginPage';
@@ -83,6 +86,18 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [proporsiTargetMill, setProporsiTargetMill] = useState<'TM' | 'VRM'>('TM');
 
+  const lastLocalEditRef = useRef<number>(0);
+  const cloudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const syncAllCloudArchivesToLocal = async () => {
+    const allCloud = await fetchAllCloudSessions();
+    for (const k of Object.keys(allCloud)) {
+      if (allCloud[k] && allCloud[k].date && allCloud[k].shiftName) {
+        saveShiftArchive(allCloud[k]);
+      }
+    }
+  };
+
   // Global Master Data & Cloud Database Real-time Sync (PC & HP)
   useEffect(() => {
     // 1. Sync master data globally across all users (Admin & Analis)
@@ -101,12 +116,13 @@ export default function App() {
     fetchCloudProductList().then((products) => {
       if (products) saveStoredProductList(products);
     });
+    syncAllCloudArchivesToLocal();
 
     if (!auth.isLoggedIn || !auth.loginDate || !auth.loginShift) return;
 
     let isMounted = true;
     fetchCloudSession(auth.loginDate, auth.loginShift).then((res) => {
-      if (isMounted && res.found && res.session) {
+      if (isMounted && res.found && res.session && Date.now() - lastLocalEditRef.current > 2500) {
         setSession(res.session);
       }
     });
@@ -118,27 +134,32 @@ export default function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'qc_sessions' },
         () => {
+          if (Date.now() - lastLocalEditRef.current < 3000) return;
           fetchCloudSession(auth.loginDate, auth.loginShift).then((res) => {
-            if (isMounted && res.found && res.session) {
+            if (isMounted && res.found && res.session && Date.now() - lastLocalEditRef.current >= 3000) {
               setSession(res.session);
             }
           });
+          syncAllCloudArchivesToLocal();
         }
       )
       .subscribe();
 
     // Background polling sync setiap 10 detik sebagai backup
     const interval = setInterval(() => {
-      fetchCloudSession(auth.loginDate, auth.loginShift).then((res) => {
-        if (isMounted && res.found && res.session) {
-          setSession((prev) => {
-            if (res.session && res.session._serverUpdatedAt && res.session._serverUpdatedAt !== (prev as any)._serverUpdatedAt) {
-              return res.session;
-            }
-            return prev;
-          });
-        }
-      });
+      if (Date.now() - lastLocalEditRef.current >= 3000) {
+        fetchCloudSession(auth.loginDate, auth.loginShift).then((res) => {
+          if (isMounted && res.found && res.session && Date.now() - lastLocalEditRef.current >= 3000) {
+            setSession((prev) => {
+              if (res.session && res.session._serverUpdatedAt && res.session._serverUpdatedAt !== (prev as any)._serverUpdatedAt) {
+                return res.session;
+              }
+              return prev;
+            });
+          }
+        });
+      }
+      syncAllCloudArchivesToLocal();
       // Also poll master targets in background so admin changes reflect on analyst devices immediately
       fetchCloudMasterTargets().then((targets) => {
         if (isMounted && targets) {
@@ -166,7 +187,8 @@ export default function App() {
     setAuth(newAuth);
     saveStoredAuth(newAuth);
 
-    // Sync master data globally on login
+    // Sync master data & all archives globally on login
+    syncAllCloudArchivesToLocal();
     const cloudTargets = await fetchCloudMasterTargets();
     if (cloudTargets) {
       setMasterTargets(cloudTargets);
@@ -205,32 +227,43 @@ export default function App() {
         saveStoredActiveSession(cloudRes.session);
       } else {
         // Shift baru bersih: seluruh baris dan form kondisi KOSONG (blank / null), bukan sisa data lampau
-        const loadedSession = switchOrStartShift(date, shift, user.name, null);
+        const loadedSession = switchOrStartShift(date, shift, user.name);
         setSession(loadedSession);
-        saveCloudSession(loadedSession);
+        await saveCloudSession(loadedSession);
       }
     }
   };
 
   // Handle user logout: persist state permanently before clearing auth
   const handleLogout = () => {
+    if (cloudSaveTimerRef.current) {
+      clearTimeout(cloudSaveTimerRef.current);
+      cloudSaveTimerRef.current = null;
+    }
     saveStoredActiveSession(session);
     saveCloudSession(session);
     logoutUser();
     setAuth({
       isLoggedIn: false,
       user: null,
-      loginDate: new Date().toISOString().slice(0, 10),
-      loginShift: 'SHIFT 2',
+      loginDate: getCurrentWibDateString(),
+      loginShift: getAutoRecommendedShift(),
     });
     setIsProfileModalOpen(false);
   };
 
   // Update session and persist to storage and cloud database (Poin 2)
   const handleUpdateSession = (updated: ShiftSession) => {
+    lastLocalEditRef.current = Date.now();
     setSession(updated);
     saveStoredActiveSession(updated);
-    saveCloudSession(updated);
+    if (cloudSaveTimerRef.current) {
+      clearTimeout(cloudSaveTimerRef.current);
+    }
+    cloudSaveTimerRef.current = setTimeout(() => {
+      saveCloudSession(updated);
+      cloudSaveTimerRef.current = null;
+    }, 200);
   };
 
   // Start or switch shift from ShiftModal with Dual-Mill support

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ShiftSession, ProductQualitySpec } from '../../types/qc';
-import { getStoredArchives, getStoredQualitySpecs, getStoredProductList } from '../../services/qcStorage';
+import { getStoredArchives, saveShiftArchive, getStoredQualitySpecs, getStoredProductList } from '../../services/qcStorage';
 import { 
   TrendingUp, 
   Calendar, 
@@ -15,7 +15,7 @@ import {
   RefreshCw,
   Info
 } from 'lucide-react';
-import { formatIndonesianDate } from '../../utils/qcCalculations';
+import { formatIndonesianDate, getCurrentWibDateString } from '../../utils/qcCalculations';
 
 interface DataPoint {
   id: string;
@@ -346,25 +346,29 @@ export const DashboardAnalitikPage: React.FC = () => {
   const [qualitySpecs, setQualitySpecs] = useState<ProductQualitySpec[]>(() => getStoredQualitySpecs());
   const [productList, setProductList] = useState<string[]>(() => getStoredProductList());
 
-  // Load all sessions from Supabase/Server
+  // Load all sessions from Supabase/Server merged with local archives
   const loadData = async () => {
     setLoading(true);
+    const merged: Record<string, ShiftSession> = { ...getStoredArchives() };
     try {
       const res = await fetch('/api/qc/all-sessions');
       if (res.ok) {
         const json = await res.json();
-        if (json.sessions && Object.keys(json.sessions).length > 0) {
-          setSessionsData(json.sessions);
-          return;
+        if (json.sessions && typeof json.sessions === 'object') {
+          for (const k of Object.keys(json.sessions)) {
+            const s = json.sessions[k];
+            if (s && s.date && s.shiftName) {
+              saveShiftArchive(s);
+              merged[`${s.date}_${s.shiftName}`] = s;
+            }
+          }
         }
       }
     } catch (e) {
       console.warn('Failed to load from API, falling back to local archives:', e);
     }
 
-    // Local fallback
-    const local = getStoredArchives();
-    setSessionsData(local);
+    setSessionsData(merged);
     setLoading(false);
   };
 
@@ -391,7 +395,7 @@ export const DashboardAnalitikPage: React.FC = () => {
 
       // Date filtering
       if (dateFilter === 'TODAY') {
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = getCurrentWibDateString();
         if (sess.date !== todayStr) continue;
       } else if (dateFilter === '7D') {
         const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -404,9 +408,11 @@ export const DashboardAnalitikPage: React.FC = () => {
       const processMill = (millCode: 'TM' | 'VRM', millData: any) => {
         if (!millData || !millData.hourlyRows) return;
         if (millFilter !== 'ALL' && millFilter !== millCode) return;
-        if (productFilter !== 'ALL' && millData.productType !== productFilter) return;
 
         for (const row of millData.hourlyRows) {
+          const rowProd = row.productType || millData.productType || '';
+          if (productFilter !== 'ALL' && rowProd !== productFilter) continue;
+
           // If all critical parameters null, skip empty rows
           if (row.blaine === null && row.so3 === null && row.residuR45 === null) continue;
 
@@ -416,7 +422,7 @@ export const DashboardAnalitikPage: React.FC = () => {
             shift: sess.shiftName,
             hour: row.hour,
             millCode,
-            product: millData.productType,
+            product: rowProd || 'SEMEN',
             blaine: typeof row.blaine === 'number' ? row.blaine : null,
             so3: typeof row.so3 === 'number' ? row.so3 : null,
             residuR45: typeof row.residuR45 === 'number' ? row.residuR45 : null,

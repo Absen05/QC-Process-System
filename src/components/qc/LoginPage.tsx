@@ -1,7 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShiftName, UserAccount } from '../../types/qc';
-import { SHIFT_DEFINITIONS, isShiftAllowedNow, getAutoRecommendedShift } from '../../utils/qcCalculations';
-import { getStoredUsers, getStoredActiveSession } from '../../services/qcStorage';
+import {
+  SHIFT_DEFINITIONS,
+  isShiftAllowedNow,
+  getAutoRecommendedShift,
+  getCurrentWibDateString,
+  getCurrentWibHoursMinutes,
+} from '../../utils/qcCalculations';
+import { getStoredUsers } from '../../services/qcStorage';
 import { ShieldCheck, User, Lock, Calendar, Clock, LogIn, AlertCircle } from 'lucide-react';
 
 interface LoginPageProps {
@@ -9,19 +15,35 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const currentActive = getStoredActiveSession();
-  const autoShift = getAutoRecommendedShift();
+  const [nowDate, setNowDate] = useState<Date>(() => new Date());
+  const autoShift = getAutoRecommendedShift(nowDate);
+  const wibInfo = getCurrentWibHoursMinutes(nowDate);
+
   const [selectedRole, setSelectedRole] = useState<'analyst' | 'supervisor'>('analyst');
-  const [selectedUserName, setSelectedUserName] = useState<string>('AHMAD RIFAI');
+  // Poin 1: Hilangkan nama analis default saat pertama kali membuka situs (wajib pilih manual)
+  const [selectedUserName, setSelectedUserName] = useState<string>('');
   const [pin, setPin] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(() => currentActive?.date || new Date().toISOString().slice(0, 10));
-  const [selectedShift, setSelectedShift] = useState<ShiftName>(() => {
-    if (currentActive?.shiftName && isShiftAllowedNow(currentActive.shiftName)) {
-      return currentActive.shiftName;
-    }
-    return autoShift;
-  });
+  // Poin 4: Pastikan tanggal & shift sesuai aktual hari sekarang (WIB)
+  const [selectedDate, setSelectedDate] = useState<string>(() => getCurrentWibDateString(new Date()));
+  const [isDateManuallyEdited, setIsDateManuallyEdited] = useState<boolean>(false);
+  const [selectedShift, setSelectedShift] = useState<ShiftName>(() => getAutoRecommendedShift(new Date()));
+  const [isShiftManuallyEdited, setIsShiftManuallyEdited] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Sinkronisasi jam & tanggal aktual real-time setiap detik pada portal login
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const current = new Date();
+      setNowDate(current);
+      if (!isDateManuallyEdited) {
+        setSelectedDate(getCurrentWibDateString(current));
+      }
+      if (!isShiftManuallyEdited) {
+        setSelectedShift(getAutoRecommendedShift(current));
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isDateManuallyEdited, isShiftManuallyEdited]);
 
   const users = getStoredUsers();
   const analystUsers = users.filter(u => u.role === 'analyst');
@@ -33,13 +55,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (role === 'supervisor') {
       setSelectedUserName('SI (ADMIN)');
     } else {
-      setSelectedUserName(analystUsers[0]?.name || 'AHMAD RIFAI');
+      setSelectedUserName('');
     }
   };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (selectedRole === 'analyst' && !selectedUserName.trim()) {
+      setErrorMessage('Silakan pilih nama analis terlebih dahulu.');
+      return;
+    }
 
     if (pin.length !== 6) {
       setErrorMessage('PIN harus terdiri dari tepat 6 digit angka.');
@@ -48,7 +75,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     const targetUser = users.find(u => u.name.toUpperCase() === selectedUserName.toUpperCase());
     if (!targetUser) {
-      setErrorMessage('Pengguna tidak ditemukan.');
+      setErrorMessage('Pengguna tidak ditemukan. Silakan pilih nama pengguna terlebih dahulu.');
       return;
     }
 
@@ -58,7 +85,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     }
 
     // Poin 4: Restriksi login shift berdasarkan jam berjalan
-    if (selectedRole === 'analyst' && !isShiftAllowedNow(selectedShift)) {
+    if (selectedRole === 'analyst' && !isShiftAllowedNow(selectedShift, nowDate)) {
       setErrorMessage('Waktu kerja belum memasuki periode shift ini.');
       return;
     }
@@ -89,6 +116,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <p className="text-xs text-slate-300 font-mono mt-0.5">
             Grinding Plant Ciwandan · PT Cemindo Gemilang Tbk
           </p>
+          {/* Live Actual Date & Time Indicator */}
+          <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-slate-900/90 border border-slate-600 rounded-lg text-[11px] font-mono text-emerald-300 shadow-inner">
+            <Clock className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span>{wibInfo.formattedFullDate} • <strong>{wibInfo.formattedTime}</strong></span>
+          </div>
         </div>
 
         {/* Form Container */}
@@ -136,11 +168,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             {selectedRole === 'analyst' ? (
               <select
                 value={selectedUserName}
-                onChange={(e) => setSelectedUserName(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border-2 border-slate-400 rounded-lg text-slate-900 font-bold text-xs focus:bg-white focus:outline-none focus:border-slate-600"
+                onChange={(e) => {
+                  setSelectedUserName(e.target.value);
+                  setErrorMessage(null);
+                }}
+                className={`w-full p-2.5 bg-slate-50 border-2 rounded-lg font-bold text-xs focus:bg-white focus:outline-none focus:border-slate-600 ${
+                  selectedUserName ? 'border-slate-400 text-slate-900' : 'border-amber-500 text-slate-500'
+                }`}
               >
+                <option value="" disabled>
+                  -- Pilih Nama Analis --
+                </option>
                 {analystUsers.map(u => (
-                  <option key={u.id} value={u.name}>
+                  <option key={u.id} value={u.name} className="text-slate-900 font-bold">
                     {u.name}
                   </option>
                 ))}
@@ -191,7 +231,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   type="date"
                   required
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setIsDateManuallyEdited(true);
+                  }}
                   className="w-full p-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono text-xs text-slate-900 font-bold focus:bg-white focus:outline-none"
                 />
               </div>
@@ -208,12 +251,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 </label>
                 <select
                   value={selectedShift}
-                  onChange={(e) => setSelectedShift(e.target.value as ShiftName)}
+                  onChange={(e) => {
+                    setSelectedShift(e.target.value as ShiftName);
+                    setIsShiftManuallyEdited(true);
+                  }}
                   className="w-full p-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono text-xs text-slate-900 font-bold focus:bg-white focus:outline-none"
                 >
                   {Object.keys(SHIFT_DEFINITIONS).map(s => {
                     const shiftName = s as ShiftName;
-                    const allowed = isShiftAllowedNow(shiftName);
+                    const allowed = isShiftAllowedNow(shiftName, nowDate);
                     return (
                       <option 
                         key={s} 

@@ -125,33 +125,19 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
   }, [activeMillData.hourlyRows, shiftHours, isProportionActive, validProporsiHistory, lockedProductType]);
 
   const isMillRunningAuto = useMemo(() => {
-    return effectiveRows.some(
-      (r) =>
-        (r.blaine !== null && r.blaine !== undefined) ||
-        (r.residuR45 !== null && r.residuR45 !== undefined) ||
-        (r.moistureH2O !== null && r.moistureH2O !== undefined) ||
-        (r.so3 !== null && r.so3 !== undefined) ||
-        (r.freelimeFCaO !== null && r.freelimeFCaO !== undefined) ||
-        (r.tph !== null && r.tph !== undefined)
+    return (
+      isProportionActive ||
+      effectiveRows.some(
+        (r) =>
+          (r.blaine !== null && r.blaine !== undefined) ||
+          (r.residuR45 !== null && r.residuR45 !== undefined) ||
+          (r.moistureH2O !== null && r.moistureH2O !== undefined) ||
+          (r.so3 !== null && r.so3 !== undefined) ||
+          (r.freelimeFCaO !== null && r.freelimeFCaO !== undefined) ||
+          (r.tph !== null && r.tph !== undefined)
+      )
     );
-  }, [effectiveRows]);
-
-  useEffect(() => {
-    const needsRowsSync = !activeMillData.hourlyRows || activeMillData.hourlyRows.length !== effectiveRows.length;
-    const needsRunningSync = activeMillData.isRunning !== isMillRunningAuto;
-
-    if (needsRowsSync || needsRunningSync) {
-      const updatedMill: MillSessionData = {
-        ...activeMillData,
-        hourlyRows: effectiveRows,
-        isRunning: isMillRunningAuto,
-      };
-      onUpdateSession({
-        ...session,
-        [activeMillTab === 'TM' ? 'tm' : 'vrm']: updatedMill,
-      });
-    }
-  }, [activeMillTab, activeMillData.hourlyRows?.length, effectiveRows.length, isMillRunningAuto]);
+  }, [effectiveRows, isProportionActive]);
 
   // Sub-Header Target Quality otomatis dari Master Data (HANYA tampil jika proporsi sudah aktif)
   const qualityTargetText = useMemo(() => {
@@ -266,7 +252,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     const updatedMill: MillSessionData = {
       ...activeMillData,
       hourlyRows: updatedRows,
-      isRunning: hasDataNow,
+      isRunning: isProportionActive || hasDataNow,
     };
 
     const updatedSession = {
@@ -275,15 +261,6 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     };
 
     onUpdateSession(updatedSession);
-
-    upsertCloudCell(
-      session.date,
-      session.shiftName,
-      activeMillTab,
-      currentRow.hour,
-      field,
-      (currentRow[field] as any)
-    );
   };
 
   // Keyboard navigation (Enter moves to next row in same column)
@@ -369,18 +346,15 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
 
         if (colKey === 'notes') {
           rowData.notes = trimmed || undefined;
-          upsertCloudCell(session.date, session.shiftName, activeMillTab, rowData.hour, 'notes', trimmed);
         } else if (colKey === 'proporsiDisplay' || colKey === 'admixtureDisplay' || colKey === 'productType' || colKey === 'hour') {
           // skip read-only display fields
         } else {
           if (trimmed === '') {
             (rowData as any)[colKey] = null;
-            upsertCloudCell(session.date, session.shiftName, activeMillTab, rowData.hour, colKey, null);
           } else {
             const parsed = parseFloat(trimmed.replace(',', '.'));
             const finalVal = isNaN(parsed) ? null : parsed;
             (rowData as any)[colKey] = finalVal;
-            upsertCloudCell(session.date, session.shiftName, activeMillTab, rowData.hour, colKey, finalVal);
           }
         }
       });
@@ -401,7 +375,7 @@ export const DataGridPage: React.FC<DataGridPageProps> = ({
     const updatedMill: MillSessionData = {
       ...activeMillData,
       hourlyRows: updatedRows,
-      isRunning: hasDataNow,
+      isRunning: isProportionActive || hasDataNow,
     };
 
     onUpdateSession({

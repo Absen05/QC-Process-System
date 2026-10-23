@@ -106,6 +106,1154 @@
     "vrm": {
       "millCode": "VRM",
       "millType": "Vertical Roller Mill (VRM)",
+      "siloName": "SILO 2",
+      "isRunning": true,
+      "hourlyRows": [
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "08:00",
+          "blaine": 4815,
+          "residuR45": 5.69,
+          "moistureH2O": null,
+          "productType": "PCC NON FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.8% Gyp | 8% Lst | 31.4% Trass",
+          "admixtureDisplay": "SIKA 400 PPM",
+          "proporsiVersionId": "prop_vrm_v1_1792652101083"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "09:00",
+          "blaine": 4870,
+          "residuR45": 6.26,
+          "moistureH2O": 0.21,
+          "productType": "PCC NON FA",
+          "freelimeFCaO": 0.42,
+          "proporsiDisplay": "57.8% Clk | 2.8% Gyp | 8% Lst | 31.4% Trass",
+          "admixtureDisplay": "SIKA 400 PPM",
+          "proporsiVersionId": "prop_vrm_v1_1792652101083"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "10:00",
+          "blaine": 4826,
+          "residuR45": 7.53,
+          "moistureH2O": null,
+          "productType": "PCC NON FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.8% Gyp | 8% Lst | 31.4% Trass",
+          "admixtureDisplay": "SIKA 400 PPM",
+          "proporsiVersionId": "prop_vrm_v1_1792652101083"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "11:00",
+          "blaine": 4694,
+          "residuR45": 12.79,
+          "moistureH2O": 0.28,
+          "productType": "PCC NON FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.8% Gyp | 8% Lst | 31.4% Trass",
+          "admixtureDisplay": "SIKA 400 PPM",
+          "proporsiVersionId": "prop_vrm_v1_1792652101083"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "12:00",
+          "blaine": 4807,
+          "residuR45": 13.79,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.8% Gyp | 8% Lst | 26.4% Trass | 5% FA",
+          "admixtureDisplay": "SIKA 400 PPM",
+          "proporsiVersionId": "prop_vrm_v2_1792652422337"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "13:00",
+          "blaine": 4574,
+          "residuR45": 18.36,
+          "moistureH2O": 0.15,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.8% Gyp | 8% Lst | 26.4% Trass | 5% FA",
+          "admixtureDisplay": "SIKA 400 PPM",
+          "proporsiVersionId": "prop_vrm_v2_1792652422337"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "14:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.8% Gyp | 8% Lst | 26.4% Trass | 5% FA",
+          "admixtureDisplay": "SIKA 400 PPM",
+          "proporsiVersionId": "prop_vrm_v2_1792652422337"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "15:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.8% Gyp | 8% Lst | 26.4% Trass | 5% FA",
+          "admixtureDisplay": "SIKA 400 PPM",
+          "proporsiVersionId": "prop_vrm_v2_1792652422337"
+        }
+      ],
+      "millNumber": 2,
+      "tphFeeding": 100,
+      "productType": "PCC Plus FA",
+      "admixturePpm": 400,
+      "admixtureName": "SIKA",
+      "proporsiHistory": [
+        {
+          "id": "prop_vrm_v1_1792652101083",
+          "label": "Proporsi 1 (08:00 - 15:00)",
+          "savedAt": "2026-10-22T06:55:01.083Z",
+          "dryTotal": 100,
+          "millType": "Vertical Roller Mill (VRM)",
+          "siloName": "SILO 2",
+          "wetTotal": 100,
+          "endAtHour": "12:00",
+          "materials": {
+            "trass": {
+              "dry": 31.4,
+              "h2o": 10,
+              "wet": 33.5,
+              "name": "Trass",
+              "wBasah": 34.9,
+              "shortName": "Trass",
+              "wetFactor": 1.1111
+            },
+            "flyAsh": {
+              "dry": 0,
+              "h2o": 0,
+              "wet": 0,
+              "name": "Fly Ash",
+              "wBasah": 0,
+              "shortName": "Fly Ash",
+              "wetFactor": 0
+            },
+            "gypsum": {
+              "dry": 2.8,
+              "h2o": 2.4,
+              "wet": 2.8,
+              "name": "Gypsum",
+              "wBasah": 2.9,
+              "shortName": "Gyp",
+              "wetFactor": 1.0246
+            },
+            "clinker": {
+              "dry": 57.8,
+              "h2o": 0,
+              "wet": 55.6,
+              "name": "Clinker",
+              "wBasah": 57.8,
+              "shortName": "Clk",
+              "wetFactor": 1
+            },
+            "limestone": {
+              "dry": 8,
+              "h2o": 4.8,
+              "wet": 8.1,
+              "name": "Limestone",
+              "wBasah": 8.4,
+              "shortName": "Lst",
+              "wetFactor": 1.0504
+            }
+          },
+          "tphFeeding": 100,
+          "productType": "PCC NON FA",
+          "admixturePpm": 400,
+          "admixtureName": "SIKA",
+          "appliedAtHour": "08:00",
+          "versionNumber": 1,
+          "isSessionOverride": false
+        },
+        {
+          "id": "prop_vrm_v2_1792652422337",
+          "label": "Proporsi 2 (12:00 - 15:00)",
+          "savedAt": "2026-10-22T07:00:22.337Z",
+          "dryTotal": 100,
+          "millType": "Vertical Roller Mill (VRM)",
+          "siloName": "SILO 2",
+          "wetTotal": 100,
+          "endAtHour": "15:00",
+          "materials": {
+            "trass": {
+              "dry": 26.4,
+              "h2o": 10,
+              "wet": 28.4,
+              "name": "Trass",
+              "wBasah": 29.3,
+              "shortName": "Trass",
+              "wetFactor": 1.1111
+            },
+            "flyAsh": {
+              "dry": 5,
+              "h2o": 0,
+              "wet": 4.8,
+              "name": "Fly Ash",
+              "wBasah": 5,
+              "shortName": "Fly Ash",
+              "wetFactor": 1
+            },
+            "gypsum": {
+              "dry": 2.8,
+              "h2o": 2.4,
+              "wet": 2.8,
+              "name": "Gypsum",
+              "wBasah": 2.9,
+              "shortName": "Gyp",
+              "wetFactor": 1.0246
+            },
+            "clinker": {
+              "dry": 57.8,
+              "h2o": 0,
+              "wet": 55.9,
+              "name": "Clinker",
+              "wBasah": 57.8,
+              "shortName": "Clk",
+              "wetFactor": 1
+            },
+            "limestone": {
+              "dry": 8,
+              "h2o": 4.8,
+              "wet": 8.1,
+              "name": "Limestone",
+              "wBasah": 8.4,
+              "shortName": "Lst",
+              "wetFactor": 1.0504
+            }
+          },
+          "tphFeeding": 100,
+          "productType": "PCC Plus FA",
+          "admixturePpm": 400,
+          "admixtureName": "SIKA",
+          "appliedAtHour": "12:00",
+          "versionNumber": 2,
+          "isSessionOverride": false
+        }
+      ]
+    },
+    "date": "2026-10-22",
+    "clinkerWf": {
+      "c3a": null,
+      "c3s": null,
+      "h2o": null,
+      "fcao": 0.79
+    },
+    "shiftName": "SHIFT 2",
+    "cpProducts": [
+      {
+        "id": "cp_1",
+        "h2o": 0.1,
+        "r45": 2.78,
+        "so3": null,
+        "label": "CP Produk 1",
+        "blaine": 4149,
+        "siloName": "SILO 1+5",
+        "productType": "DURAPRO"
+      },
+      {
+        "id": "cp_2",
+        "h2o": 0.15,
+        "r45": 5.77,
+        "so3": null,
+        "label": "CP Produk 2",
+        "blaine": 3868,
+        "siloName": "SILO 4+6",
+        "productType": "FLEXIPLUS"
+      }
+    ],
+    "moistureWf": {
+      "trass": 11.6,
+      "gypsum": 3.6,
+      "limestone": 7.2,
+      "bbKonsumsi": 24.8
+    },
+    "shiftHours": "08:00 - 16:00",
+    "analystName": "AHMAD RIFAI",
+    "cpShiftSilo": {
+      "h2o": 0.1,
+      "r45": 2.78,
+      "so3": null,
+      "blaine": 4149,
+      "siloName": "SILO 1+5"
+    },
+    "supervisorName": "SI (ADMIN)",
+    "_serverUpdatedAt": "2026-10-23T08:57:47.081Z",
+    "incomingMaterials": [
+      {
+        "id": "inc_trass",
+        "name": "Incoming Trass",
+        "params": {
+          "h2o": null,
+          "statusText": "on process"
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_limestone",
+        "name": "Incoming Limestone",
+        "params": {
+          "h2o": null,
+          "statusText": "on process"
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_gyp_anh",
+        "name": "Incoming Gypsum Anhidrat",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_gyp_nat",
+        "name": "Incoming Gypsum Natural",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_bof_slag",
+        "name": "Incoming BOF Slag",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_wet_ash",
+        "name": "Incoming Wet Ash",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_clinker",
+        "name": "Incoming Clinker",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_batu_bara",
+        "name": "Incoming Batu Bara",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_bbfs_krt",
+        "name": "Incoming BBFS KRT",
+        "params": {
+          "h2o": null,
+          "r45": null,
+          "blaine": null
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_fa_asc",
+        "name": "Incoming Fly Ash ASC",
+        "params": {
+          "h2o": 0.1,
+          "r45": 21.27,
+          "blaine": 5531
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_fa_ikpp",
+        "name": "Incoming Fly Ash IKPP",
+        "params": {
+          "h2o": null,
+          "r45": null,
+          "blaine": null
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_clinker_bayah",
+        "name": "Incoming Clinker Bayah",
+        "params": {
+          "c3a": null,
+          "c3s": null,
+          "h2o": null,
+          "fcao": 0.74
+        },
+        "enabledParams": [
+          "c3s",
+          "fcao",
+          "c3a",
+          "h2o"
+        ]
+      }
+    ]
+  },
+  "2026-10-22_SHIFT 3": {
+    "id": "shift_SHIFT_3_2026-10-22",
+    "tm": {
+      "millCode": "TM",
+      "millType": "Tube Mill (TM)",
+      "siloName": "SILO 6",
+      "isRunning": true,
+      "hourlyRows": [
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "16:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "OPC P",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "90% Clk | 3.8% Gyp | 6.2% Lst",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792664912705"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "17:00",
+          "blaine": 3820,
+          "residuR45": 1.46,
+          "moistureH2O": 0.21,
+          "productType": "OPC P",
+          "freelimeFCaO": 0.77,
+          "proporsiDisplay": "90% Clk | 3.8% Gyp | 6.2% Lst",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v2_1792674501176"
+        },
+        {
+          "so3": 1.92,
+          "tph": 100,
+          "hour": "18:00",
+          "blaine": 3412,
+          "residuR45": 3.58,
+          "moistureH2O": null,
+          "productType": "OPC P",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "90% Clk | 3.8% Gyp | 6.2% Lst",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v2_1792674501176"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "19:00",
+          "blaine": 3840,
+          "residuR45": 1.83,
+          "moistureH2O": 0.14,
+          "productType": "OPC P",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "90% Clk | 3.9% Gyp | 6.1% Lst",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v3_1792674561159"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "20:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "OPC P",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "90% Clk | 3.9% Gyp | 6.1% Lst",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v3_1792674561159"
+        },
+        {
+          "so3": 2.25,
+          "tph": 100,
+          "hour": "21:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": 0.16,
+          "productType": "OPC P",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "90% Clk | 3.9% Gyp | 6.1% Lst",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v3_1792674561159"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "22:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "OPC P",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "90% Clk | 3.9% Gyp | 6.1% Lst",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v3_1792674561159"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "23:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": 0.23,
+          "productType": "OPC P",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "90% Clk | 3.9% Gyp | 6.1% Lst",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v3_1792674561159"
+        }
+      ],
+      "millNumber": 1,
+      "tphFeeding": 100,
+      "productType": "OPC P",
+      "admixturePpm": 580,
+      "admixtureName": "CONCH",
+      "proporsiHistory": [
+        {
+          "id": "prop_tm_v1_1792664912705",
+          "label": "Proporsi 1 (16:00 - 16:00)",
+          "savedAt": "2026-10-22T10:28:32.705Z",
+          "dryTotal": 100,
+          "millType": "Tube Mill (TM)",
+          "siloName": "SILO 6",
+          "wetTotal": 100,
+          "endAtHour": "16:00",
+          "materials": {
+            "trass": {
+              "dry": 0,
+              "h2o": 11.6,
+              "wet": 0,
+              "name": "Trass",
+              "wBasah": 0,
+              "shortName": "Trass",
+              "wetFactor": 0
+            },
+            "flyAsh": {
+              "dry": 0,
+              "h2o": 0,
+              "wet": 0,
+              "name": "Fly Ash",
+              "wBasah": 0,
+              "shortName": "Fly Ash",
+              "wetFactor": 0
+            },
+            "gypsum": {
+              "dry": 3.8,
+              "h2o": 3.6,
+              "wet": 3.9,
+              "name": "Gypsum",
+              "wBasah": 3.9,
+              "shortName": "Gyp",
+              "wetFactor": 1.0373
+            },
+            "clinker": {
+              "dry": 90,
+              "h2o": 0,
+              "wet": 89.4,
+              "name": "Clinker",
+              "wBasah": 90,
+              "shortName": "Clk",
+              "wetFactor": 1
+            },
+            "limestone": {
+              "dry": 6.2,
+              "h2o": 7.2,
+              "wet": 6.7,
+              "name": "Limestone",
+              "wBasah": 6.7,
+              "shortName": "Lst",
+              "wetFactor": 1.0776
+            }
+          },
+          "tphFeeding": 100,
+          "productType": "OPC P",
+          "admixturePpm": 580,
+          "admixtureName": "CONCH",
+          "appliedAtHour": "16:00",
+          "versionNumber": 1,
+          "isSessionOverride": false
+        },
+        {
+          "id": "prop_tm_v2_1792674501176",
+          "label": "Proporsi 2 (17:00 - 18:00)",
+          "savedAt": "2026-10-22T13:08:21.176Z",
+          "dryTotal": 100,
+          "millType": "Tube Mill (TM)",
+          "siloName": "SILO 6",
+          "wetTotal": 100,
+          "endAtHour": "18:00",
+          "materials": {
+            "trass": {
+              "dry": 0,
+              "h2o": 0,
+              "wet": 0,
+              "name": "Trass",
+              "wBasah": 0,
+              "shortName": "Trass",
+              "wetFactor": 0
+            },
+            "flyAsh": {
+              "dry": 0,
+              "h2o": 0,
+              "wet": 0,
+              "name": "Fly Ash",
+              "wBasah": 0,
+              "shortName": "Fly Ash",
+              "wetFactor": 0
+            },
+            "gypsum": {
+              "dry": 3.8,
+              "h2o": 3.6,
+              "wet": 3.9,
+              "name": "Gypsum",
+              "wBasah": 3.9,
+              "shortName": "Gyp",
+              "wetFactor": 1.0373
+            },
+            "clinker": {
+              "dry": 90,
+              "h2o": 0,
+              "wet": 89.4,
+              "name": "Clinker",
+              "wBasah": 90,
+              "shortName": "Clk",
+              "wetFactor": 1
+            },
+            "limestone": {
+              "dry": 6.2,
+              "h2o": 7.2,
+              "wet": 6.7,
+              "name": "Limestone",
+              "wBasah": 6.7,
+              "shortName": "Lst",
+              "wetFactor": 1.0776
+            }
+          },
+          "tphFeeding": 100,
+          "productType": "OPC P",
+          "admixturePpm": 580,
+          "admixtureName": "CONCH",
+          "appliedAtHour": "17:00",
+          "versionNumber": 2,
+          "isSessionOverride": false
+        },
+        {
+          "id": "prop_tm_v3_1792674561159",
+          "label": "Proporsi 3 (19:00 - 23:00)",
+          "savedAt": "2026-10-22T13:09:21.159Z",
+          "dryTotal": 100,
+          "millType": "Tube Mill (TM)",
+          "siloName": "SILO 6",
+          "wetTotal": 100,
+          "endAtHour": "23:00",
+          "materials": {
+            "trass": {
+              "dry": 0,
+              "h2o": 0,
+              "wet": 0,
+              "name": "Trass",
+              "wBasah": 0,
+              "shortName": "Trass",
+              "wetFactor": 0
+            },
+            "flyAsh": {
+              "dry": 0,
+              "h2o": 0,
+              "wet": 0,
+              "name": "Fly Ash",
+              "wBasah": 0,
+              "shortName": "Fly Ash",
+              "wetFactor": 0
+            },
+            "gypsum": {
+              "dry": 3.9,
+              "h2o": 3.2,
+              "wet": 4,
+              "name": "Gypsum",
+              "wBasah": 4,
+              "shortName": "Gyp",
+              "wetFactor": 1.0331
+            },
+            "clinker": {
+              "dry": 90,
+              "h2o": 0,
+              "wet": 89.5,
+              "name": "Clinker",
+              "wBasah": 90,
+              "shortName": "Clk",
+              "wetFactor": 1
+            },
+            "limestone": {
+              "dry": 6.1,
+              "h2o": 6.6,
+              "wet": 6.5,
+              "name": "Limestone",
+              "wBasah": 6.5,
+              "shortName": "Lst",
+              "wetFactor": 1.0707
+            }
+          },
+          "tphFeeding": 100,
+          "productType": "OPC P",
+          "admixturePpm": 580,
+          "admixtureName": "CONCH",
+          "appliedAtHour": "19:00",
+          "versionNumber": 3,
+          "isSessionOverride": true
+        }
+      ]
+    },
+    "vrm": {
+      "millCode": "VRM",
+      "millType": "Vertical Roller Mill (VRM)",
+      "siloName": "",
+      "isRunning": false,
+      "hourlyRows": [
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "16:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "17:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "18:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "19:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "20:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "21:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "22:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "23:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        }
+      ],
+      "millNumber": 2,
+      "tphFeeding": 0,
+      "productType": "",
+      "admixturePpm": 0,
+      "admixtureName": "",
+      "proporsiHistory": []
+    },
+    "date": "2026-10-22",
+    "clinkerWf": {
+      "c3a": null,
+      "c3s": null,
+      "h2o": null,
+      "fcao": null
+    },
+    "shiftName": "SHIFT 3",
+    "cpProducts": [
+      {
+        "id": "cp_1",
+        "h2o": 0.25,
+        "r45": 4.21,
+        "so3": 2.1,
+        "label": "CP Produk 1",
+        "blaine": 3670,
+        "siloName": "SILO 6",
+        "productType": "OPC G"
+      },
+      {
+        "id": "cp_2",
+        "h2o": null,
+        "r45": null,
+        "so3": null,
+        "label": "CP Produk 2",
+        "blaine": null,
+        "siloName": "SILO 2",
+        "productType": "PCC NON FA"
+      }
+    ],
+    "moistureWf": {
+      "trass": null,
+      "gypsum": 3.2,
+      "limestone": 6.6,
+      "bbKonsumsi": null
+    },
+    "shiftHours": "16:00 - 24:00",
+    "analystName": "INES NARSUL",
+    "cpShiftSilo": {
+      "h2o": 0.25,
+      "r45": 4.21,
+      "so3": 2.1,
+      "blaine": 3670,
+      "siloName": "SILO 6"
+    },
+    "supervisorName": "SI (ADMIN)",
+    "_serverUpdatedAt": "2026-10-23T08:54:58.539Z",
+    "incomingMaterials": [
+      {
+        "id": "inc_trass",
+        "name": "Incoming Trass",
+        "params": {
+          "h2o": null,
+          "statusText": ""
+        },
+        "enabledParams": [
+          "h2o",
+          "statusText"
+        ]
+      },
+      {
+        "id": "inc_limestone",
+        "name": "Incoming Limestone",
+        "params": {
+          "h2o": 6,
+          "statusText": ""
+        },
+        "enabledParams": [
+          "h2o",
+          "statusText"
+        ]
+      },
+      {
+        "id": "inc_gyp_anh",
+        "name": "Incoming Gypsum Anhidrat",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_gyp_nat",
+        "name": "Incoming Gypsum Natural",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_bof_slag",
+        "name": "Incoming BOF Slag",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_wet_ash",
+        "name": "Incoming Wet Ash",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_clinker",
+        "name": "Incoming Clinker",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_batu_bara",
+        "name": "Incoming Batu Bara",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_bbfs_krt",
+        "name": "Incoming BBFS KRT",
+        "params": {
+          "h2o": null,
+          "r45": null,
+          "blaine": null
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_fa_asc",
+        "name": "Incoming Fly Ash ASC",
+        "params": {
+          "h2o": null,
+          "r45": null,
+          "blaine": null
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_fa_ikpp",
+        "name": "Incoming Fly Ash IKPP",
+        "params": {
+          "h2o": null,
+          "r45": null,
+          "blaine": null
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_clinker_bayah",
+        "name": "Incoming Clinker Bayah",
+        "params": {
+          "c3a": null,
+          "c3s": null,
+          "h2o": null,
+          "fcao": null
+        },
+        "enabledParams": [
+          "c3s",
+          "fcao",
+          "c3a",
+          "h2o"
+        ]
+      }
+    ]
+  },
+  "2026-10-23_SHIFT 2": {
+    "id": "shift_SHIFT_2_2026-10-23",
+    "tm": {
+      "millCode": "TM",
+      "millType": "Tube Mill (TM)",
+      "siloName": "",
+      "isRunning": false,
+      "hourlyRows": [
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "08:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "09:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "10:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "11:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "12:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "13:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "14:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "15:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        }
+      ],
+      "millNumber": 1,
+      "tphFeeding": 0,
+      "productType": "",
+      "admixturePpm": 0,
+      "admixtureName": "",
+      "proporsiHistory": []
+    },
+    "vrm": {
+      "millCode": "VRM",
+      "millType": "Vertical Roller Mill (VRM)",
       "siloName": "",
       "isRunning": false,
       "hourlyRows": [
@@ -205,7 +1353,7 @@
       "admixtureName": "",
       "proporsiHistory": []
     },
-    "date": "2026-10-22",
+    "date": "2026-10-23",
     "clinkerWf": {
       "c3a": null,
       "c3s": null,
@@ -242,7 +1390,7 @@
       "bbKonsumsi": null
     },
     "shiftHours": "08:00 - 16:00",
-    "analystName": "AHMAD RIFAI",
+    "analystName": "SADRANI",
     "cpShiftSilo": {
       "h2o": null,
       "r45": null,
@@ -251,14 +1399,14 @@
       "siloName": "SILO 2"
     },
     "supervisorName": "SI (ADMIN)",
-    "_serverUpdatedAt": "2026-10-22T06:02:39.409Z",
+    "_serverUpdatedAt": "2026-10-23T09:01:43.415Z",
     "incomingMaterials": [
       {
         "id": "inc_trass",
         "name": "Incoming Trass",
         "params": {
           "h2o": null,
-          "statusText": "on process"
+          "statusText": ""
         },
         "enabledParams": [
           "h2o",
@@ -270,7 +1418,7 @@
         "name": "Incoming Limestone",
         "params": {
           "h2o": null,
-          "statusText": "on process"
+          "statusText": ""
         },
         "enabledParams": [
           "h2o",
@@ -281,7 +1429,7 @@
         "id": "inc_gyp_anh",
         "name": "Incoming Gypsum Anhidrat",
         "params": {
-          "h2o": 3.82
+          "h2o": null
         },
         "enabledParams": [
           "h2o"
@@ -291,7 +1439,7 @@
         "id": "inc_gyp_nat",
         "name": "Incoming Gypsum Natural",
         "params": {
-          "h2o": 4.15
+          "h2o": null
         },
         "enabledParams": [
           "h2o"
@@ -301,7 +1449,7 @@
         "id": "inc_bof_slag",
         "name": "Incoming BOF Slag",
         "params": {
-          "h2o": 1.18
+          "h2o": null
         },
         "enabledParams": [
           "h2o"
@@ -311,7 +1459,7 @@
         "id": "inc_wet_ash",
         "name": "Incoming Wet Ash",
         "params": {
-          "h2o": 24.3
+          "h2o": null
         },
         "enabledParams": [
           "h2o"
@@ -321,7 +1469,7 @@
         "id": "inc_clinker",
         "name": "Incoming Clinker",
         "params": {
-          "h2o": 0.12
+          "h2o": null
         },
         "enabledParams": [
           "h2o"
@@ -331,7 +1479,486 @@
         "id": "inc_batu_bara",
         "name": "Incoming Batu Bara",
         "params": {
-          "h2o": 18.5
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_bbfs_krt",
+        "name": "Incoming BBFS KRT",
+        "params": {
+          "h2o": null,
+          "r45": null,
+          "blaine": null
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_fa_asc",
+        "name": "Incoming Fly Ash ASC",
+        "params": {
+          "h2o": null,
+          "r45": null,
+          "blaine": null
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_fa_ikpp",
+        "name": "Incoming Fly Ash IKPP",
+        "params": {
+          "h2o": null,
+          "r45": null,
+          "blaine": null
+        },
+        "enabledParams": [
+          "blaine",
+          "r45",
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_clinker_bayah",
+        "name": "Incoming Clinker Bayah",
+        "params": {
+          "c3a": null,
+          "c3s": null,
+          "h2o": null,
+          "fcao": null
+        },
+        "enabledParams": [
+          "c3s",
+          "fcao",
+          "c3a",
+          "h2o"
+        ]
+      }
+    ]
+  },
+  "2026-10-23_SHIFT 3": {
+    "id": "shift_SHIFT_3_2026-10-23",
+    "tm": {
+      "millCode": "TM",
+      "millType": "Tube Mill (TM)",
+      "siloName": "SILO 2",
+      "isRunning": true,
+      "hourlyRows": [
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "16:00",
+          "blaine": 4370,
+          "residuR45": 3.68,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.9% Gyp | 18.8% Lst | 15.5% Trass | 5% FA",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792745965543"
+        },
+        {
+          "so3": null,
+          "tph": 115,
+          "hour": "17:00",
+          "blaine": 3980,
+          "residuR45": 5.85,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.9% Gyp | 18.8% Lst | 15.5% Trass | 5% FA",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792745965543"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "18:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.9% Gyp | 18.8% Lst | 15.5% Trass | 5% FA",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792745965543"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "19:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.9% Gyp | 18.8% Lst | 15.5% Trass | 5% FA",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792745965543"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "20:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.9% Gyp | 18.8% Lst | 15.5% Trass | 5% FA",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792745965543"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "21:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.9% Gyp | 18.8% Lst | 15.5% Trass | 5% FA",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792745965543"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "22:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.9% Gyp | 18.8% Lst | 15.5% Trass | 5% FA",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792745965543"
+        },
+        {
+          "so3": null,
+          "tph": 100,
+          "hour": "23:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "productType": "PCC Plus FA",
+          "freelimeFCaO": null,
+          "proporsiDisplay": "57.8% Clk | 2.9% Gyp | 18.8% Lst | 15.5% Trass | 5% FA",
+          "admixtureDisplay": "CONCH 580 PPM",
+          "proporsiVersionId": "prop_tm_v1_1792745965543"
+        }
+      ],
+      "millNumber": 1,
+      "tphFeeding": 100,
+      "productType": "PCC Plus FA",
+      "admixturePpm": 580,
+      "admixtureName": "CONCH",
+      "proporsiHistory": [
+        {
+          "id": "prop_tm_v1_1792745965543",
+          "label": "Proporsi 1 (16:00 - 23:00)",
+          "savedAt": "2026-10-23T08:59:25.543Z",
+          "dryTotal": 100,
+          "millType": "Tube Mill (TM)",
+          "siloName": "SILO 2",
+          "wetTotal": 100,
+          "endAtHour": "23:00",
+          "materials": {
+            "trass": {
+              "dry": 15.5,
+              "h2o": 11.2,
+              "wet": 17.1,
+              "name": "Trass",
+              "wBasah": 17.5,
+              "shortName": "Trass",
+              "wetFactor": 1.1261
+            },
+            "flyAsh": {
+              "dry": 5,
+              "h2o": 0,
+              "wet": 4.9,
+              "name": "Fly Ash",
+              "wBasah": 5,
+              "shortName": "Fly Ash",
+              "wetFactor": 1
+            },
+            "gypsum": {
+              "dry": 2.9,
+              "h2o": 4,
+              "wet": 2.9,
+              "name": "Gypsum",
+              "wBasah": 3,
+              "shortName": "Gyp",
+              "wetFactor": 1.0417
+            },
+            "clinker": {
+              "dry": 57.8,
+              "h2o": 0,
+              "wet": 56.3,
+              "name": "Clinker",
+              "wBasah": 57.8,
+              "shortName": "Clk",
+              "wetFactor": 1
+            },
+            "limestone": {
+              "dry": 18.8,
+              "h2o": 2.8,
+              "wet": 18.8,
+              "name": "Limestone",
+              "wBasah": 19.3,
+              "shortName": "Lst",
+              "wetFactor": 1.0288
+            }
+          },
+          "tphFeeding": 100,
+          "productType": "PCC Plus FA",
+          "admixturePpm": 580,
+          "admixtureName": "CONCH",
+          "appliedAtHour": "16:00",
+          "versionNumber": 1,
+          "isSessionOverride": true
+        }
+      ]
+    },
+    "vrm": {
+      "millCode": "VRM",
+      "millType": "Vertical Roller Mill (VRM)",
+      "siloName": "",
+      "isRunning": false,
+      "hourlyRows": [
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "16:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "17:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "18:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "19:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "20:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "21:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "22:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        },
+        {
+          "so3": null,
+          "tph": null,
+          "hour": "23:00",
+          "blaine": null,
+          "residuR45": null,
+          "moistureH2O": null,
+          "freelimeFCaO": null,
+          "proporsiDisplay": "",
+          "admixtureDisplay": ""
+        }
+      ],
+      "millNumber": 2,
+      "tphFeeding": 0,
+      "productType": "",
+      "admixturePpm": 0,
+      "admixtureName": "",
+      "proporsiHistory": []
+    },
+    "date": "2026-10-23",
+    "clinkerWf": {
+      "c3a": null,
+      "c3s": null,
+      "h2o": null,
+      "fcao": null
+    },
+    "shiftName": "SHIFT 3",
+    "cpProducts": [
+      {
+        "id": "cp_1",
+        "h2o": null,
+        "r45": null,
+        "so3": null,
+        "label": "CP Produk 1",
+        "blaine": null,
+        "siloName": "SILO 4",
+        "productType": "PCC Plus FA"
+      },
+      {
+        "id": "cp_2",
+        "h2o": null,
+        "r45": null,
+        "so3": null,
+        "label": "CP Produk 2",
+        "blaine": null,
+        "siloName": "SILO 2",
+        "productType": "PCC NON FA"
+      }
+    ],
+    "moistureWf": {
+      "trass": null,
+      "gypsum": null,
+      "limestone": null,
+      "bbKonsumsi": null
+    },
+    "shiftHours": "16:00 - 24:00",
+    "analystName": "AHMAD RIFAI",
+    "cpShiftSilo": {
+      "h2o": null,
+      "r45": null,
+      "so3": null,
+      "blaine": null,
+      "siloName": "SILO 2"
+    },
+    "supervisorName": "SI (ADMIN)",
+    "_serverUpdatedAt": "2026-10-23T09:49:47.165Z",
+    "incomingMaterials": [
+      {
+        "id": "inc_trass",
+        "name": "Incoming Trass",
+        "params": {
+          "h2o": null,
+          "statusText": ""
+        },
+        "enabledParams": [
+          "h2o",
+          "statusText"
+        ]
+      },
+      {
+        "id": "inc_limestone",
+        "name": "Incoming Limestone",
+        "params": {
+          "h2o": null,
+          "statusText": ""
+        },
+        "enabledParams": [
+          "h2o",
+          "statusText"
+        ]
+      },
+      {
+        "id": "inc_gyp_anh",
+        "name": "Incoming Gypsum Anhidrat",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_gyp_nat",
+        "name": "Incoming Gypsum Natural",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_bof_slag",
+        "name": "Incoming BOF Slag",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_wet_ash",
+        "name": "Incoming Wet Ash",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_clinker",
+        "name": "Incoming Clinker",
+        "params": {
+          "h2o": null
+        },
+        "enabledParams": [
+          "h2o"
+        ]
+      },
+      {
+        "id": "inc_batu_bara",
+        "name": "Incoming Batu Bara",
+        "params": {
+          "h2o": null
         },
         "enabledParams": [
           "h2o"

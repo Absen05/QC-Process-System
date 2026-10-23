@@ -1,8 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShiftName, ShiftSession } from '../../types/qc';
-import { SHIFT_DEFINITIONS, generateWhatsAppReport, formatIndonesianDate } from '../../utils/qcCalculations';
-import { getArchivedShift, getStoredArchives } from '../../services/qcStorage';
-import { Search, Calendar, Clock, Copy, Check, FileText, Factory, Truck, Archive, Download, FileSpreadsheet } from 'lucide-react';
+import {
+  SHIFT_DEFINITIONS,
+  generateWhatsAppReport,
+  formatIndonesianDate,
+  getCurrentWibDateString,
+  getAutoRecommendedShift,
+} from '../../utils/qcCalculations';
+import { getArchivedShift, getStoredArchives, saveShiftArchive, ArchiveMap } from '../../services/qcStorage';
+import { fetchAllCloudSessions, fetchCloudSession } from '../../services/qcApi';
+import {
+  Search,
+  Calendar,
+  Clock,
+  Copy,
+  Check,
+  FileText,
+  Factory,
+  Truck,
+  Archive,
+  Download,
+  FileSpreadsheet,
+  RefreshCw,
+} from 'lucide-react';
 import { exportShiftToExcel, exportRekapitulasiToExcel } from '../../utils/qcExcelExport';
 
 interface RiwayatPageProps {
@@ -10,25 +30,96 @@ interface RiwayatPageProps {
 }
 
 export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive }) => {
-  const [queryDate, setQueryDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [queryShift, setQueryShift] = useState<ShiftName>('SHIFT 2');
+  const [archives, setArchives] = useState<ArchiveMap>(() => getStoredArchives());
+  const [queryDate, setQueryDate] = useState<string>(() => getCurrentWibDateString());
+  const [queryShift, setQueryShift] = useState<ShiftName>(() => getAutoRecommendedShift());
   const [searchedSession, setSearchedSession] = useState<ShiftSession | null>(() => {
-    return getArchivedShift(new Date().toISOString().slice(0, 10), 'SHIFT 2');
+    const todayWib = getCurrentWibDateString();
+    const recShift = getAutoRecommendedShift();
+    const direct = getArchivedShift(todayWib, recShift);
+    if (direct) return direct;
+    const allLocal = getStoredArchives();
+    const keys = Object.keys(allLocal).sort();
+    if (keys.length > 0) {
+      return allLocal[keys[keys.length - 1]];
+    }
+    return null;
   });
   const [hasSearched, setHasSearched] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [syncingCloud, setSyncingCloud] = useState(false);
 
-  const archives = getStoredArchives();
-  const archiveKeys = Object.keys(archives);
+  const syncArchivesFromCloud = async () => {
+    setSyncingCloud(true);
+    try {
+      const cloudSessions = await fetchAllCloudSessions();
+      const merged: ArchiveMap = { ...getStoredArchives() };
+      for (const k of Object.keys(cloudSessions)) {
+        const s = cloudSessions[k];
+        if (s && s.date && s.shiftName) {
+          saveShiftArchive(s);
+          merged[`${s.date}_${s.shiftName}`] = s;
+        }
+      }
+      setArchives(merged);
+      setSearchedSession((prev) => {
+        if (prev) {
+          const updatedKey = `${prev.date}_${prev.shiftName}`;
+          if (merged[updatedKey]) return merged[updatedKey];
+          return prev;
+        }
+        const sortedKeys = Object.keys(merged).sort();
+        if (sortedKeys.length > 0) {
+          const latest = merged[sortedKeys[sortedKeys.length - 1]];
+          if (latest) {
+            setQueryDate(latest.date);
+            setQueryShift(latest.shiftName);
+          }
+          return latest || null;
+        }
+        return null;
+      });
+    } finally {
+      setSyncingCloud(false);
+    }
+  };
 
-  const handleSearch = (e?: React.FormEvent) => {
+  useEffect(() => {
+    syncArchivesFromCloud();
+  }, []);
+
+  const archiveKeys = Object.keys(archives).sort();
+
+  const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setHasSearched(true);
-    const result = getArchivedShift(queryDate, queryShift);
-    setSearchedSession(result);
+    const localResult = archives[`${queryDate}_${queryShift}`] || getArchivedShift(queryDate, queryShift);
+    if (localResult) {
+      setSearchedSession(localResult);
+    }
+    // Cek juga langsung ke Supabase Cloud agar data terbaru selalu terambil
+    const cloudRes = await fetchCloudSession(queryDate, queryShift);
+    if (cloudRes.found && cloudRes.session) {
+      saveShiftArchive(cloudRes.session);
+      setArchives((prev) => ({
+        ...prev,
+        [`${cloudRes.session!.date}_${cloudRes.session!.shiftName}`]: cloudRes.session!,
+      }));
+      setSearchedSession(cloudRes.session);
+    } else if (!localResult) {
+      setSearchedSession(null);
+    }
   };
 
   const handleSelectArchiveKey = (key: string) => {
+    const target = archives[key];
+    if (target) {
+      setQueryDate(target.date);
+      setQueryShift(target.shiftName);
+      setHasSearched(true);
+      setSearchedSession(target);
+      return;
+    }
     const [d, ...sParts] = key.split('_');
     const s = sParts.join(' ') as ShiftName;
     setQueryDate(d);
@@ -97,7 +188,18 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
               className="px-4 py-2.5 bg-[#0284C7] hover:bg-sky-700 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Search className="w-4 h-4" />
-              <span>Cari Arsip</span>
+              <span>Cari Data Shift</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={syncArchivesFromCloud}
+              disabled={syncingCloud}
+              className="px-3.5 py-2.5 bg-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Tarik ulang semua arsip shift dari Supabase Cloud"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncingCloud ? 'animate-spin' : ''}`} />
+              <span>{syncingCloud ? 'Sinkronisasi...' : 'Segarkan Cloud'}</span>
             </button>
 
             {archiveKeys.length > 0 && (
@@ -118,25 +220,31 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
         {/* Quick archive list chips */}
         {archiveKeys.length > 0 && (
           <div className="mt-3 pt-3 border-t border-slate-200">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
-              <Archive className="w-3 h-3" />
-              <span>Daftar Arsip Tersedia ({archiveKeys.length}):</span>
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+              <Archive className="w-3.5 h-3.5 text-[#E31E24]" />
+              <span>Daftar Data Shift Tersimpan di Database ({archiveKeys.length} Sesi):</span>
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {archiveKeys.slice(-8).reverse().map(key => {
+              {archiveKeys.slice().reverse().map(key => {
+                const item = archives[key];
                 const isSelected = searchedSession && `${searchedSession.date}_${searchedSession.shiftName}` === key;
                 return (
                   <button
                     key={key}
                     type="button"
                     onClick={() => handleSelectArchiveKey(key)}
-                    className={`px-2.5 py-1 text-xs font-mono font-bold rounded border transition-colors ${
+                    className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border transition-colors cursor-pointer flex items-center gap-1.5 ${
                       isSelected 
-                        ? 'bg-slate-800 text-white border-slate-800' 
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300'
+                        ? 'bg-slate-800 text-white border-slate-900 shadow-xs' 
+                        : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border-slate-300'
                     }`}
                   >
-                    {key.replace('_', ' • ')}
+                    <span>{key.replace('_', ' • ')}</span>
+                    {item?.analystName && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${isSelected ? 'bg-slate-700 text-amber-300' : 'bg-white text-slate-600 border border-slate-200'}`}>
+                        {item.analystName}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -154,7 +262,7 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
             <div>
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 bg-[#E31E24] text-white font-bold text-xs rounded">
-                  ARSIP HISTORIS
+                  DATA SHIFT TERSIMPAN
                 </span>
                 <span className="text-sm font-bold text-slate-900 font-mono">
                   {formatIndonesianDate(searchedSession.date)} · {searchedSession.shiftName}
@@ -201,7 +309,9 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
           {(['tm', 'vrm'] as const).map(millKey => {
             const mill = searchedSession[millKey];
             const isTM = millKey === 'tm';
-            const filledRows = mill.hourlyRows.filter(r => r.blaine !== null || r.residuR45 !== null || r.tph !== null);
+            const filledRows = mill.hourlyRows.filter(
+              r => r.blaine !== null || r.residuR45 !== null || r.moistureH2O !== null || r.so3 !== null || r.freelimeFCaO !== null || r.tph !== null
+            );
 
             return (
               <div key={millKey} className="bg-white border-2 border-slate-500 rounded-xl overflow-hidden shadow-sm">
@@ -209,12 +319,16 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
                   <div className="flex items-center gap-2 font-bold text-xs">
                     <Factory className="w-4 h-4 text-amber-400" />
                     <span>{isTM ? 'Tube Mill (TM)' : 'Vertical Roller Mill (VRM)'}</span>
-                    <span>— {mill.productType} ({mill.siloName})</span>
+                    {mill.productType ? (
+                      <span>— {mill.productType} ({mill.siloName || '-'})</span>
+                    ) : (
+                      <span className="text-slate-300 font-normal">— Proporsi Belum Diaktifkan</span>
+                    )}
                   </div>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    mill.isRunning ? 'bg-green-500 text-white' : 'bg-slate-500 text-slate-200'
+                    mill.isRunning || filledRows.length > 0 ? 'bg-green-500 text-white' : 'bg-slate-500 text-slate-200'
                   }`}>
-                    {mill.isRunning ? 'Running' : 'Standby / Off'}
+                    {mill.isRunning || filledRows.length > 0 ? `Running (${filledRows.length} Jam Terisi)` : 'Standby / Off'}
                   </span>
                 </div>
 
@@ -282,7 +396,7 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
             );
           })}
 
-          {/* Plant-Wide Sections (Clinker WF, Moisture WF, CP Shift, Incoming) */}
+          {/* Plant-Wide Sections (Clinker WF, Moisture WF, CP Shift) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
             {/* Clinker WF */}
             <div className="bg-white border-2 border-slate-500 rounded-xl p-3.5 shadow-sm">
@@ -336,6 +450,33 @@ export const RiwayatPage: React.FC<RiwayatPageProps> = ({ onLoadArchiveToActive 
               </div>
             </div>
           </div>
+
+          {/* Incoming Materials Section */}
+          {searchedSession.incomingMaterials && searchedSession.incomingMaterials.length > 0 && (
+            <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm text-xs font-mono">
+              <div className="flex items-center gap-2 font-bold text-slate-900 uppercase pb-2 border-b border-slate-200 mb-3">
+                <Truck className="w-4 h-4 text-[#E31E24]" />
+                <span>Incoming Raw Materials ({searchedSession.incomingMaterials.length} Item)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {searchedSession.incomingMaterials.map((inc) => (
+                  <div key={inc.id} className="p-2.5 bg-slate-50 border border-slate-300 rounded-lg">
+                    <div className="font-bold text-slate-900 mb-1">{inc.name}</div>
+                    <div className="text-[11px] text-slate-700 flex flex-wrap gap-x-3 gap-y-0.5">
+                      {inc.enabledParams.map((param) => {
+                        const val = (inc.params as any)?.[param];
+                        return (
+                          <span key={param}>
+                            {param.toUpperCase()}: <strong>{val !== null && val !== undefined && val !== '' ? val : '-'}</strong>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* WhatsApp Text Report Preview */}
           <div className="bg-white border-2 border-slate-500 rounded-xl p-4 shadow-sm">
