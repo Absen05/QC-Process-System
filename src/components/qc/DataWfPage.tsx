@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShiftSession } from '../../types/qc';
 import { Scale, Droplets, Check, Info } from 'lucide-react';
 
@@ -12,14 +12,36 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
   onUpdateSession,
 }) => {
   const [saveIndicator, setSaveIndicator] = useState(false);
+  const [rawValues, setRawValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setRawValues({});
+  }, [session.date, session.shift]);
 
   const showSaveSuccess = () => {
     setSaveIndicator(true);
     setTimeout(() => setSaveIndicator(false), 2000);
   };
 
+  const getClinkerDisplay = (field: 'c3s' | 'fcao' | 'c3a' | 'h2o'): string => {
+    const key = `clinker_${field}`;
+    if (rawValues[key] !== undefined) return rawValues[key];
+    const v = session.clinkerWf[field];
+    return v !== null && v !== undefined ? String(v) : '';
+  };
+
+  const getMoistureDisplay = (field: 'gypsum' | 'limestone' | 'trass' | 'bbKonsumsi'): string => {
+    const key = `moisture_${field}`;
+    if (rawValues[key] !== undefined) return rawValues[key];
+    const v = session.moistureWf[field];
+    return v !== null && v !== undefined ? String(v) : '';
+  };
+
   const handleClinkerChange = (field: 'c3s' | 'fcao' | 'c3a' | 'h2o', val: string) => {
-    const num = val === '' ? null : parseFloat(val);
+    if (val !== '' && !/^\d*[.,]?\d*$/.test(val)) return;
+    setRawValues(prev => ({ ...prev, [`clinker_${field}`]: val }));
+    const cleanVal = val.replace(',', '.');
+    const num = (cleanVal === '' || cleanVal === '.') ? null : parseFloat(cleanVal);
     onUpdateSession({
       ...session,
       clinkerWf: {
@@ -31,7 +53,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
   };
 
   const handleMoistureChange = (field: 'gypsum' | 'limestone' | 'trass' | 'bbKonsumsi', val: string) => {
-    const num = val === '' ? null : parseFloat(val);
+    if (val !== '' && !/^\d*[.,]?\d*$/.test(val)) return;
+    setRawValues(prev => ({ ...prev, [`moisture_${field}`]: val }));
+    const cleanVal = val.replace(',', '.');
+    const num = (cleanVal === '' || cleanVal === '.') ? null : parseFloat(cleanVal);
     onUpdateSession({
       ...session,
       moistureWf: {
@@ -98,11 +123,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
                 C3S (%)
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="misal: 59.92"
-                value={session.clinkerWf.c3s !== null && session.clinkerWf.c3s !== undefined ? session.clinkerWf.c3s : ''}
+                placeholder="misal: 59,92"
+                value={getClinkerDisplay('c3s')}
                 onChange={(e) => handleClinkerChange('c3s', e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
               />
@@ -113,11 +137,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
                 F-CaO (Free Lime) (%)
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="misal: 0.70"
-                value={session.clinkerWf.fcao !== null && session.clinkerWf.fcao !== undefined ? session.clinkerWf.fcao : ''}
+                placeholder="misal: 0,70"
+                value={getClinkerDisplay('fcao')}
                 onChange={(e) => handleClinkerChange('fcao', e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
               />
@@ -128,11 +151,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
                 C3A (%)
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="misal: 7.89"
-                value={session.clinkerWf.c3a !== null && session.clinkerWf.c3a !== undefined ? session.clinkerWf.c3a : ''}
+                placeholder="misal: 7,89"
+                value={getClinkerDisplay('c3a')}
                 onChange={(e) => handleClinkerChange('c3a', e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
               />
@@ -143,11 +165,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
                 H2O (%)
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
                 placeholder="kosongkan jika **"
-                value={session.clinkerWf.h2o !== null && session.clinkerWf.h2o !== undefined ? session.clinkerWf.h2o : ''}
+                value={getClinkerDisplay('h2o')}
                 onChange={(e) => handleClinkerChange('h2o', e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
               />
@@ -189,11 +210,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
                 Gypsum (%)
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="misal: 3.2"
-                value={session.moistureWf.gypsum !== null && session.moistureWf.gypsum !== undefined ? session.moistureWf.gypsum : ''}
+                placeholder="misal: 3,2"
+                value={getMoistureDisplay('gypsum')}
                 onChange={(e) => handleMoistureChange('gypsum', e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
               />
@@ -204,11 +224,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
                 Limestone (%)
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="misal: 8.0"
-                value={session.moistureWf.limestone !== null && session.moistureWf.limestone !== undefined ? session.moistureWf.limestone : ''}
+                placeholder="misal: 8,0"
+                value={getMoistureDisplay('limestone')}
                 onChange={(e) => handleMoistureChange('limestone', e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
               />
@@ -219,11 +238,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
                 Trass (%)
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="misal: 10.8"
-                value={session.moistureWf.trass !== null && session.moistureWf.trass !== undefined ? session.moistureWf.trass : ''}
+                placeholder="misal: 10,8"
+                value={getMoistureDisplay('trass')}
                 onChange={(e) => handleMoistureChange('trass', e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
               />
@@ -234,11 +252,10 @@ export const DataWfPage: React.FC<DataWfPageProps> = ({
                 BB Konsumsi (%)
               </label>
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                placeholder="misal: 19.2"
-                value={session.moistureWf.bbKonsumsi !== null && session.moistureWf.bbKonsumsi !== undefined ? session.moistureWf.bbKonsumsi : ''}
+                placeholder="misal: 19,2"
+                value={getMoistureDisplay('bbKonsumsi')}
                 onChange={(e) => handleMoistureChange('bbKonsumsi', e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
               />

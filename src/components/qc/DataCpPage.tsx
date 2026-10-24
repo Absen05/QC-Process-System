@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShiftSession, CpProductSample } from '../../types/qc';
 import { getStoredProductList } from '../../services/qcStorage';
 import { Package, Check, Layers, AlertCircle } from 'lucide-react';
@@ -13,7 +13,12 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
   onUpdateSession,
 }) => {
   const [saveIndicator, setSaveIndicator] = useState(false);
+  const [rawValues, setRawValues] = useState<Record<string, string>>({});
   const productList = getStoredProductList();
+
+  useEffect(() => {
+    setRawValues({});
+  }, [session.date, session.shift]);
 
   const showSaveSuccess = () => {
     setSaveIndicator(true);
@@ -43,6 +48,13 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
     },
   ];
 
+  const getCpDisplay = (index: 0 | 1, field: 'blaine' | 'r45' | 'h2o' | 'so3'): string => {
+    const key = `cp_${index}_${field}`;
+    if (rawValues[key] !== undefined) return rawValues[key];
+    const v = cpProducts[index][field];
+    return v !== null && v !== undefined ? String(v) : '';
+  };
+
   const handleUpdateCp = (index: 0 | 1, field: keyof CpProductSample, val: any) => {
     const nextCp: [CpProductSample, CpProductSample] = [
       { ...cpProducts[0] },
@@ -52,7 +64,11 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
     if (field === 'productType' || field === 'siloName' || field === 'label') {
       (nextCp[index] as any)[field] = typeof val === 'string' ? val.toUpperCase() : val;
     } else {
-      const num = val === '' ? null : parseFloat(val);
+      const strVal = String(val);
+      if (strVal !== '' && !/^\d*[.,]?\d*$/.test(strVal)) return;
+      setRawValues(prev => ({ ...prev, [`cp_${index}_${field}`]: strVal }));
+      const cleanVal = strVal.replace(',', '.');
+      const num = (cleanVal === '' || cleanVal === '.') ? null : parseFloat(cleanVal);
       (nextCp[index] as any)[field] = isNaN(num as number) ? null : num;
     }
 
@@ -74,6 +90,14 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
   };
 
   const handleClearCp = (index: 0 | 1) => {
+    setRawValues(prev => {
+      const next = { ...prev };
+      delete next[`cp_${index}_blaine`];
+      delete next[`cp_${index}_r45`];
+      delete next[`cp_${index}_h2o`];
+      delete next[`cp_${index}_so3`];
+      return next;
+    });
     const nextCp: [CpProductSample, CpProductSample] = [
       { ...cpProducts[0] },
       { ...cpProducts[1] },
@@ -199,11 +223,10 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
                     Blaine (cm²/gr)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="1"
                     placeholder="misal: 5041"
-                    value={cp.blaine !== null && cp.blaine !== undefined ? cp.blaine : ''}
+                    value={getCpDisplay(idx as 0 | 1, 'blaine')}
                     onChange={(e) => handleUpdateCp(idx as 0 | 1, 'blaine', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
                   />
@@ -214,11 +237,10 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
                     R45 (Residu %)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.01"
-                    placeholder="misal: 5.54"
-                    value={cp.r45 !== null && cp.r45 !== undefined ? cp.r45 : ''}
+                    placeholder="misal: 5,54"
+                    value={getCpDisplay(idx as 0 | 1, 'r45')}
                     onChange={(e) => handleUpdateCp(idx as 0 | 1, 'r45', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
                   />
@@ -229,11 +251,10 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
                     H2O (Moisture %)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.01"
-                    placeholder="misal: 0.27"
-                    value={cp.h2o !== null && cp.h2o !== undefined ? cp.h2o : ''}
+                    placeholder="misal: 0,27"
+                    value={getCpDisplay(idx as 0 | 1, 'h2o')}
                     onChange={(e) => handleUpdateCp(idx as 0 | 1, 'h2o', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
                   />
@@ -244,11 +265,10 @@ export const DataCpPage: React.FC<DataCpPageProps> = ({
                     SO3 (%)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
-                    step="0.01"
-                    placeholder="misal: 1.93"
-                    value={cp.so3 !== null && cp.so3 !== undefined ? cp.so3 : ''}
+                    placeholder="misal: 1,93"
+                    value={getCpDisplay(idx as 0 | 1, 'so3')}
                     onChange={(e) => handleUpdateCp(idx as 0 | 1, 'so3', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border-2 border-slate-400 rounded-lg font-mono font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-slate-600"
                   />

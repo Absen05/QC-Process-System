@@ -35,6 +35,24 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
   // Delete Material confirmation modal state
   const [materialToDelete, setMaterialToDelete] = useState<UnifiedIncomingMaterial | null>(null);
 
+  // Local raw string state so users can type comma (,) or dot (.) and trailing zeros (e.g. 3,05) smoothly
+  const [rawValues, setRawValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setRawValues({});
+  }, [session.date, session.shift]);
+
+  const getDisplayValue = (mat: UnifiedIncomingMaterial, paramKey: IncomingParamKey): string => {
+    const key = `${mat.id}_${paramKey}`;
+    if (rawValues[key] !== undefined) {
+      return rawValues[key];
+    }
+    const storedVal = paramKey === 'h2o'
+      ? (mat.params.h2o !== null && mat.params.h2o !== undefined ? mat.params.h2o : mat.params.valuePercent)
+      : mat.params[paramKey];
+    return storedVal !== null && storedVal !== undefined ? String(storedVal) : '';
+  };
+
   // Auto-clean any legacy 'valuePercent' into 'h2o' to guarantee pure parameters
   useEffect(() => {
     let hasLegacy = false;
@@ -78,6 +96,16 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
     paramKey: IncomingParamKey,
     val: string
   ) => {
+    if (paramKey !== 'statusText') {
+      if (val !== '' && !/^\d*[.,]?\d*$/.test(val)) {
+        return;
+      }
+      setRawValues(prev => ({
+        ...prev,
+        [`${matId}_${paramKey}`]: val,
+      }));
+    }
+
     const updated = session.incomingMaterials.map(m => {
       if (m.id === matId) {
         if (paramKey === 'statusText') {
@@ -87,7 +115,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
           };
         } else {
           const cleanVal = val.replace(',', '.');
-          const parsed = cleanVal === '' ? null : parseFloat(cleanVal);
+          const parsed = (cleanVal === '' || cleanVal === '.') ? null : parseFloat(cleanVal);
           return {
             ...m,
             params: {
@@ -289,7 +317,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                       <label className="text-[11px] font-bold text-slate-700 uppercase">
                         H2O / Moisture (%)
                       </label>
-                      <span className="text-[10px] text-slate-500 font-mono">Angka desimal (cth: 3.82)</span>
+                      <span className="text-[10px] text-slate-500 font-mono">Angka desimal (cth: 3,82 atau 3.82)</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1">
@@ -297,7 +325,7 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                           type="text"
                           inputMode="decimal"
                           placeholder="Ketik angka desimal..."
-                          value={mat.params.h2o !== null && mat.params.h2o !== undefined ? mat.params.h2o : (mat.params.valuePercent ?? '')}
+                          value={getDisplayValue(mat, 'h2o')}
                           onChange={(e) => handleParamChange(mat.id, 'h2o', e.target.value)}
                           className="w-full px-3 py-2 text-sm font-mono font-bold text-slate-900 bg-slate-50 border-2 border-slate-400 rounded-lg focus:bg-white focus:border-slate-600 focus:outline-none"
                         />
@@ -343,11 +371,10 @@ export const RawMaterialsPage: React.FC<RawMaterialsPageProps> = ({
                             {def.label} ({def.unit})
                           </label>
                           <input
-                            type="number"
+                            type="text"
                             inputMode="decimal"
-                            step={def.step}
                             placeholder={def.unit}
-                            value={mat.params[paramKey] !== null && mat.params[paramKey] !== undefined ? mat.params[paramKey] : ''}
+                            value={getDisplayValue(mat, paramKey)}
                             onChange={(e) => handleParamChange(mat.id, paramKey, e.target.value)}
                             className="w-full px-2 py-1 bg-slate-50 border-2 border-slate-400 rounded font-mono font-bold text-xs focus:bg-white focus:outline-none"
                           />
